@@ -1,0 +1,1 @@
+"""Applications Django pour SmartQueue."""

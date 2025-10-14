@@ -1,0 +1,1 @@
+"""Paramétrage Django pour SmartQueue."""

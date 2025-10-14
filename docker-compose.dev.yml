@@ -1,0 +1,75 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: smartqueue_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartqueue
+      POSTGRES_USER: smartqueue
+      POSTGRES_PASSWORD: smartqueue
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: smartqueue_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: smartqueue_backend
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: smartqueue_backend.settings.dev
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    command: python manage.py runserver 0.0.0.0:8000
+
+  celery:
+    build:
+      context: ./backend
+    container_name: smartqueue_celery
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - redis
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: smartqueue_backend.settings.dev
+    volumes:
+      - ./backend:/app
+    command: celery -A smartqueue_backend worker -l info
+
+  celery_beat:
+    build:
+      context: ./backend
+    container_name: smartqueue_celery_beat
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - redis
+    env_file:
+      - .env
+    environment:
+      DJANGO_SETTINGS_MODULE: smartqueue_backend.settings.dev
+    volumes:
+      - ./backend:/app
+    command: celery -A smartqueue_backend beat -l info
+
+volumes:
+  postgres_data:

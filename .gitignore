@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Environnements
+.venv/
+backend/.venv/
+.env
+
+# Docker
+*.log
+
+# Node/Expo (futur)
+node_modules/
+.expo/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
