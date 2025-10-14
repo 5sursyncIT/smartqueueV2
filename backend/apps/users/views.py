@@ -276,3 +276,52 @@ class UserViewSet(viewsets.ModelViewSet):
 
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def assign_tenant(self, request, pk=None):
+        """Assigne un utilisateur à une organisation avec un rôle."""
+        user = self.get_object()
+        tenant_id = request.data.get('tenant_id')
+        role = request.data.get('role')
+
+        if not tenant_id or not role:
+            return Response(
+                {'error': 'tenant_id and role are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate role
+        valid_roles = ['admin', 'manager', 'agent']
+        if role not in valid_roles:
+            return Response(
+                {'error': f'Invalid role. Must be one of: {", ".join(valid_roles)}'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Validate tenant exists
+        from apps.tenants.models import Tenant
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return Response(
+                {'error': 'Tenant not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Create or update membership
+        membership, created = TenantMembership.objects.update_or_create(
+            user=user,
+            tenant=tenant,
+            defaults={'role': role, 'is_active': True}
+        )
+
+        return Response({
+            'message': 'User assigned to tenant successfully',
+            'membership': {
+                'tenant_id': str(tenant.id),
+                'tenant_name': tenant.name,
+                'tenant_slug': tenant.slug,
+                'role': membership.role,
+                'created': created,
+            }
+        })
