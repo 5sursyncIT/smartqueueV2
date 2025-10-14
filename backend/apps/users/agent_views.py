@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from django.db import transaction
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.core.permissions import HasScope, IsTenantMember, Scopes
@@ -11,7 +13,7 @@ from apps.queues.models import Queue, QueueAssignment
 from apps.tenants.models import TenantMembership
 
 from .models import AgentProfile, User
-from .serializers import AgentSerializer
+from .serializers import AgentSerializer, InviteAgentSerializer
 
 
 @extend_schema_view(
@@ -47,24 +49,19 @@ class AgentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsTenantMember, HasScope(Scopes.MANAGE_AGENT)]
 
     def get_queryset(self):
-        """Retourne les agents qui ont des queues dans ce tenant."""
+        """Retourne tous les agents membres du tenant (avec ou sans queues assignées)."""
         tenant = self.request.tenant
 
-        # Debug logging
-        import logging
-        logger = logging.getLogger(__name__)
-        logger.info(f"AgentViewSet.get_queryset - Tenant: {tenant}, ID: {tenant.id if tenant else 'None'}")
-
-        # Récupérer les agents qui ont au moins une queue assignment dans ce tenant
-        agent_ids = QueueAssignment.objects.filter(
-            queue__tenant=tenant,
+        # Récupérer tous les utilisateurs qui sont agents de ce tenant
+        agent_user_ids = TenantMembership.objects.filter(
+            tenant=tenant,
+            role=TenantMembership.ROLE_AGENT,
             is_active=True,
-        ).values_list("agent_id", flat=True).distinct()
+        ).values_list("user_id", flat=True)
 
-        logger.info(f"AgentViewSet.get_queryset - Agent IDs: {list(agent_ids)}")
-
+        # Retourner les profils agents correspondants
         return AgentProfile.objects.filter(
-            id__in=agent_ids
+            user_id__in=agent_user_ids
         ).select_related("user").order_by("user__email")
 
     def create(self, request, *args, **kwargs):
@@ -115,7 +112,7 @@ class AgentViewSet(viewsets.ModelViewSet):
                 QueueAssignment.objects.get_or_create(
                     queue=queue,
                     agent=agent_profile,
-                    defaults={"is_active": True},
+                    defaults={"is_active": True, "tenant": tenant},
                 )
 
         serializer = self.get_serializer(agent_profile)
@@ -149,7 +146,7 @@ class AgentViewSet(viewsets.ModelViewSet):
                     QueueAssignment.objects.update_or_create(
                         queue=queue,
                         agent=instance,
-                        defaults={"is_active": True},
+                        defaults={"is_active": True, "tenant": tenant},
                     )
 
         serializer = self.get_serializer(instance)
@@ -168,3 +165,86 @@ class AgentViewSet(viewsets.ModelViewSet):
 
         # Note: On ne supprime pas le profil agent car il peut être utilisé par d'autres tenants
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        request=InviteAgentSerializer,
+        responses={201: AgentSerializer},
+        summary="Inviter un nouvel agent",
+        description=(
+            "Crée un nouvel utilisateur, l'ajoute comme agent au tenant, "
+            "crée son profil agent et l'assigne optionnellement à des queues. "
+            "Tout est fait en une seule transaction atomique."
+        ),
+    )
+    @action(detail=False, methods=["post"], url_path="invite")
+    def invite_agent(self, request, tenant_slug=None):
+        """Invite un nouvel agent (crée User + TenantMembership + AgentProfile + Assignments)."""
+        tenant = request.tenant
+        serializer = InviteAgentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        email = data["email"]
+        password = data["password"]
+        first_name = data["first_name"]
+        last_name = data["last_name"]
+        phone_number = data.get("phone_number", "")
+        queue_ids = data.get("queue_ids", [])
+
+        try:
+            with transaction.atomic():
+                # 1. Créer l'utilisateur
+                user = User.objects.create(
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone_number=phone_number,
+                    is_active=True,
+                )
+                user.set_password(password)
+                user.save()
+
+                # 2. Créer le membership au tenant avec rôle agent
+                TenantMembership.objects.create(
+                    tenant=tenant,
+                    user=user,
+                    role=TenantMembership.ROLE_AGENT,
+                    is_active=True,
+                )
+
+                # 3. Créer le profil agent
+                agent_profile = AgentProfile.objects.create(
+                    user=user,
+                    current_status=AgentProfile.STATUS_AVAILABLE,
+                )
+
+                # 4. Assigner aux queues si spécifiées
+                if queue_ids:
+                    queues = Queue.objects.filter(id__in=queue_ids, tenant=tenant)
+                    if queues.count() != len(queue_ids):
+                        raise ValueError(
+                            "Certaines queues n'existent pas ou n'appartiennent pas à ce tenant"
+                        )
+
+                    for queue in queues:
+                        QueueAssignment.objects.create(
+                            queue=queue,
+                            agent=agent_profile,
+                            tenant=tenant,
+                            is_active=True,
+                        )
+
+                # 5. Retourner le profil agent créé
+                response_serializer = self.get_serializer(agent_profile)
+                return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+        except ValueError as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            return Response(
+                {"error": f"Erreur lors de la création de l'agent: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

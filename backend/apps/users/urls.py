@@ -11,11 +11,12 @@ from .jwt_views import (
     JWTMeView,
     TokenBlacklistView,
 )
-from .views import AgentStatusViewSet, AuthViewSet
+from .views import AgentStatusViewSet, AuthViewSet, UserViewSet
 
 router = DefaultRouter()
 router.register("auth", AuthViewSet, basename="auth")
 router.register("agent-status", AgentStatusViewSet, basename="agent-status")
+router.register("users", UserViewSet, basename="user")
 
 urlpatterns = [
     path("", include(router.urls)),

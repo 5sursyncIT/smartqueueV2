@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.utils.text import slugify
 from rest_framework import serializers
 
 from .models import Queue, QueueAssignment, Service, Site
@@ -70,6 +71,7 @@ class QueueSerializer(serializers.ModelSerializer):
     service = ServiceSerializer(read_only=True)
     service_id = serializers.UUIDField(write_only=True)
     waiting_count = serializers.IntegerField(read_only=True)
+    slug = serializers.SlugField(required=False)  # Auto-généré si non fourni
 
     class Meta:
         model = Queue
@@ -94,6 +96,18 @@ class QueueSerializer(serializers.ModelSerializer):
     def create(self, validated_data):  # type: ignore[override]
         request = self.context["request"]
         tenant = request.tenant
+
+        # Auto-générer le slug si non fourni
+        if "slug" not in validated_data or not validated_data["slug"]:
+            base_slug = slugify(validated_data["name"])
+            slug = base_slug
+            counter = 1
+            # Assurer l'unicité du slug pour ce tenant
+            while Queue.objects.filter(tenant=tenant, slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            validated_data["slug"] = slug
+
         site_id = validated_data.pop("site_id", None)
         if site_id:
             if not Site.objects.filter(id=site_id, tenant=tenant).exists():

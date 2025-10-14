@@ -109,6 +109,32 @@ class AgentSerializer(serializers.ModelSerializer):
         ]
 
 
+class InviteAgentSerializer(serializers.Serializer):
+    """Serializer pour inviter un nouvel agent (crée User + Membership + Profile)."""
+
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True, required=True, min_length=8)
+    first_name = serializers.CharField(required=True, min_length=2)
+    last_name = serializers.CharField(required=True, min_length=2)
+    phone_number = serializers.CharField(required=False, allow_blank=True)
+    queue_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+        help_text="Liste des IDs de queues à assigner à l'agent"
+    )
+
+    def validate_email(self, value):
+        """Vérifier si l'email est déjà utilisé."""
+        from .models import User
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "Un utilisateur avec cet email existe déjà. "
+                "Utilisez l'endpoint standard pour ajouter un utilisateur existant."
+            )
+        return value
+
+
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)

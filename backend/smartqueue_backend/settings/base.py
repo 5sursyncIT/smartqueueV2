@@ -222,6 +222,7 @@ CELERY_TASK_SOFT_TIME_LIMIT = 60 * 4
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE: dict[str, dict] = {
+    # === Billing & Tenants ===
     # Vérification quotidienne des factures impayées à 9h00
     'check-overdue-invoices': {
         'task': 'apps.tenants.tasks.check_overdue_invoices',
@@ -244,6 +245,26 @@ CELERY_BEAT_SCHEDULE: dict[str, dict] = {
     'cleanup-expired-trials': {
         'task': 'apps.tenants.tasks.cleanup_expired_trials',
         'schedule': crontab(hour=3, minute=0),
+        'options': {'expires': 3600},
+    },
+
+    # === Queue Analytics & Intelligence ===
+    # Mise à jour de l'ETA des tickets toutes les 2 minutes
+    'update-tickets-eta': {
+        'task': 'apps.queues.tasks.update_tickets_eta',
+        'schedule': 120.0,  # Toutes les 2 minutes
+        'options': {'expires': 60},
+    },
+    # Vérification de la santé des files toutes les 5 minutes
+    'check-queue-health': {
+        'task': 'apps.queues.tasks.check_queue_health',
+        'schedule': 300.0,  # Toutes les 5 minutes
+        'options': {'expires': 120},
+    },
+    # Nettoyage des vieux tickets quotidiennement à 4h00
+    'cleanup-old-tickets': {
+        'task': 'apps.queues.tasks.cleanup_old_tickets',
+        'schedule': crontab(hour=4, minute=0),
         'options': {'expires': 3600},
     },
 }

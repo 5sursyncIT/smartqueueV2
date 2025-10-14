@@ -13,8 +13,9 @@ from rest_framework.response import Response
 from apps.core.permissions import HasScope, IsAgent, IsTenantMember, Scopes
 from apps.queues.models import Queue
 from apps.queues.services import QueueService
+from apps.tenants.models import TenantMembership
 
-from .models import AgentProfile
+from .models import AgentProfile, User
 from .serializers import AgentProfileSerializer, LoginSerializer, UserSerializer
 
 
@@ -133,3 +134,145 @@ class AgentStatusViewSet(viewsets.ViewSet):
                 },
             },
         )
+
+
+@extend_schema_view(
+    list=extend_schema(responses={200: UserSerializer(many=True)}),
+    retrieve=extend_schema(responses={200: UserSerializer}),
+    create=extend_schema(request=UserSerializer, responses={201: UserSerializer}),
+    partial_update=extend_schema(request=UserSerializer, responses={200: UserSerializer}),
+    destroy=extend_schema(responses={204: None}),
+)
+class UserViewSet(viewsets.ModelViewSet):
+    """ViewSet pour la gestion CRUD des utilisateurs (super-admin uniquement)."""
+
+    queryset = User.objects.all().prefetch_related('tenant_memberships__tenant')
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """Retourne tous les utilisateurs avec leurs memberships."""
+        queryset = super().get_queryset()
+
+        # Annoter avec les informations de tenants
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Liste tous les utilisateurs avec leurs tenants."""
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+
+        # Enrichir avec les données de tenants
+        data = []
+        for user_data, user_obj in zip(serializer.data, queryset):
+            memberships = TenantMembership.objects.filter(
+                user=user_obj,
+                is_active=True
+            ).select_related('tenant')
+
+            user_data['tenants'] = [
+                {
+                    'tenant_id': str(m.tenant.id),
+                    'tenant_name': m.tenant.name,
+                    'tenant_slug': m.tenant.slug,
+                    'role': m.role,
+                }
+                for m in memberships
+            ]
+            data.append(user_data)
+
+        return Response(data)
+
+    def retrieve(self, request, *args, **kwargs):
+        """Récupère un utilisateur avec ses tenants."""
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+
+        # Enrichir avec les données de tenants
+        data = serializer.data
+        memberships = TenantMembership.objects.filter(
+            user=instance,
+            is_active=True
+        ).select_related('tenant')
+
+        data['tenants'] = [
+            {
+                'tenant_id': str(m.tenant.id),
+                'tenant_name': m.tenant.name,
+                'tenant_slug': m.tenant.slug,
+                'role': m.role,
+            }
+            for m in memberships
+        ]
+
+        return Response(data)
+
+    def create(self, request, *args, **kwargs):
+        """Crée un nouvel utilisateur."""
+        # Extraire le mot de passe
+        password = request.data.get('password')
+        if not password:
+            return Response(
+                {'password': ['Ce champ est requis.']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Créer l'utilisateur
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Créer avec le mot de passe hashé
+        user = User.objects.create(
+            email=serializer.validated_data['email'],
+            first_name=serializer.validated_data['first_name'],
+            last_name=serializer.validated_data['last_name'],
+            phone_number=serializer.validated_data.get('phone_number', ''),
+            is_active=True,
+        )
+        user.set_password(password)
+
+        # Définir is_superuser et is_staff si fournis
+        if 'is_superuser' in request.data:
+            user.is_superuser = request.data['is_superuser']
+        if 'is_staff' in request.data:
+            user.is_staff = request.data['is_staff']
+
+        user.save()
+
+        return Response(
+            UserSerializer(user).data,
+            status=status.HTTP_201_CREATED
+        )
+
+    def partial_update(self, request, *args, **kwargs):
+        """Met à jour un utilisateur."""
+        instance = self.get_object()
+
+        # Si un mot de passe est fourni, le mettre à jour
+        password = request.data.get('password')
+        if password:
+            instance.set_password(password)
+            # Ne pas inclure le password dans la serialization
+            data = {k: v for k, v in request.data.items() if k != 'password'}
+        else:
+            data = request.data
+
+        serializer = self.get_serializer(instance, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        """Supprime un utilisateur."""
+        instance = self.get_object()
+
+        # Empêcher la suppression de soi-même
+        if instance.id == request.user.id:
+            return Response(
+                {'error': 'Vous ne pouvez pas supprimer votre propre compte.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
