@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SmartQueue is a multi-tenant queue management system with three main components:
-- **Backend**: Django/DRF API with real-time WebSocket support and async task processing
-- **Frontend**: Next.js 14 web application (placeholder for now)
-- **Mobile**: React Native/Expo mobile app (placeholder for now)
+SmartQueue is a multi-tenant SaaS queue management system with:
+- **Backend**: Django/DRF API with real-time WebSocket support, async task processing (Celery), and billing automation
+- **Frontend**: Next.js 15 web application (back_office) with multi-role support
+- **Mobile**: React Native/Expo mobile app (planned)
 
-The backend is functional with core multi-tenant architecture. Frontend and mobile are planned for future iterations.
+The system serves multiple tenants with isolated data, role-based access control, and automated billing/dunning management.
 
 ## Development Commands
 
