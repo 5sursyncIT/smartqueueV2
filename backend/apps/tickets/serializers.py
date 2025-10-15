@@ -5,12 +5,16 @@ from rest_framework import serializers
 from apps.customers.models import Customer
 from apps.customers.serializers import CustomerSerializer
 from apps.queues.models import Service
+from apps.queues.serializers import QueueSerializer
+from apps.users.serializers import AgentProfileSerializer
 
 from .models import Appointment, Ticket
 
 
 class TicketSerializer(serializers.ModelSerializer):
     queue_id = serializers.UUIDField(write_only=True)
+    queue = QueueSerializer(read_only=True)
+    agent = AgentProfileSerializer(read_only=True)
     customer = CustomerSerializer(read_only=True)
     customer_id = serializers.UUIDField(write_only=True, required=False)
 
@@ -41,7 +45,10 @@ class TicketSerializer(serializers.ModelSerializer):
             "id",
             "tenant",
             "queue",
+            "number",  # Le numéro est généré automatiquement
+            "status",  # Le statut initial est défini automatiquement
             "eta_seconds",
+            "agent",  # L'agent est assigné plus tard
             "called_at",
             "started_at",
             "ended_at",

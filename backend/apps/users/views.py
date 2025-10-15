@@ -71,18 +71,26 @@ class AgentStatusViewSet(viewsets.ViewSet):
         self._broadcast_status(profile)
         return Response(serializer.data)
 
-    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, IsAgent])
-    def call_next(self, request):
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def call_next(self, request, tenant_slug=None):
         """Agent appelle le prochain ticket d'une file."""
+        print(f"[DEBUG call_next] User: {request.user.email}, Authenticated: {request.user.is_authenticated}")
+        print(f"[DEBUG call_next] Tenant: {getattr(request, 'tenant', None)}")
         queue_id = request.data.get("queue_id")
-        if not queue_id:
-            return Response(
-                {"error": "queue_id est requis"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
-        queue = get_object_or_404(Queue, id=queue_id, tenant=request.tenant)
-        profile = AgentProfile.objects.get(user=request.user)
+        # Si aucun queue_id n'est fourni, utiliser la première file active
+        if not queue_id:
+            from apps.queues.models import Queue
+            queue = Queue.objects.filter(tenant=request.tenant, status='active').first()
+            if not queue:
+                return Response(
+                    {"error": "Aucune file active disponible"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+        else:
+            queue = get_object_or_404(Queue, id=queue_id, tenant=request.tenant)
+
+        profile, _ = AgentProfile.objects.get_or_create(user=request.user)
 
         try:
             ticket = QueueService.call_next(profile, queue)
@@ -99,7 +107,7 @@ class AgentStatusViewSet(viewsets.ViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated, IsAgent])
-    def set_status(self, request):
+    def set_status(self, request, tenant_slug=None):
         """Change le statut de l'agent."""
         new_status = request.data.get("status")
         if not new_status:

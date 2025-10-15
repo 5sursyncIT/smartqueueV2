@@ -3,6 +3,7 @@ from __future__ import annotations
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.utils import timezone
+from django_filters import rest_framework as filters
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -13,10 +14,40 @@ from .serializers import AppointmentSerializer, TicketSerializer
 from .tasks import calculate_eta
 
 
+class TicketFilter(filters.FilterSet):
+    """Custom filter for Ticket model with status__in support."""
+    status = filters.CharFilter(method='filter_status')
+    agent = filters.CharFilter(method='filter_agent')
+
+    def filter_status(self, queryset, name, value):
+        """Allow comma-separated status values."""
+        if ',' in value:
+            statuses = [s.strip() for s in value.split(',')]
+            return queryset.filter(status__in=statuses)
+        return queryset.filter(status=value)
+
+    def filter_agent(self, queryset, name, value):
+        """Filter by agent - accepts both AgentProfile ID and User ID."""
+        from apps.users.models import AgentProfile
+
+        # Check if value is a User ID or AgentProfile ID
+        # Try to find AgentProfile by user ID first
+        agent_profile = AgentProfile.objects.filter(user_id=value).first()
+        if agent_profile:
+            return queryset.filter(agent_id=agent_profile.id)
+
+        # Otherwise, assume it's an AgentProfile ID
+        return queryset.filter(agent_id=value)
+
+    class Meta:
+        model = Ticket
+        fields = ("queue", "status", "channel", "agent")
+
+
 class TicketViewSet(viewsets.ModelViewSet):
     serializer_class = TicketSerializer
     permission_classes = [IsAuthenticated]
-    filterset_fields = ("queue", "status", "channel")
+    filterset_class = TicketFilter
     ordering_fields = ("created_at", "priority", "called_at")
     search_fields = ("number", "customer_name", "customer_phone")
 
@@ -48,13 +79,30 @@ class TicketViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=["post"])
-    def close(self, request, pk=None):  # type: ignore[override]
+    def start_service(self, request, pk=None, tenant_slug=None):  # type: ignore[override]
+        """Démarre le service pour un ticket appelé."""
+        from apps.queues.services import QueueService
+
         ticket = self.get_object()
-        ticket.status = Ticket.STATUS_CLOSED
-        ticket.ended_at = timezone.now()
-        ticket.save(update_fields=["status", "ended_at"])
-        self._broadcast_ticket_event(ticket, event_type="ticket.closed")
-        return Response(self.get_serializer(ticket).data)
+        try:
+            ticket = QueueService.start_service(ticket)
+            self._broadcast_ticket_event(ticket, event_type="ticket.started")
+            return Response(self.get_serializer(ticket).data)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
+
+    @action(detail=True, methods=["post"])
+    def close(self, request, pk=None, tenant_slug=None):  # type: ignore[override]
+        """Ferme un ticket terminé."""
+        from apps.queues.services import QueueService
+
+        ticket = self.get_object()
+        try:
+            ticket = QueueService.close_ticket(ticket)
+            self._broadcast_ticket_event(ticket, event_type="ticket.closed")
+            return Response(self.get_serializer(ticket).data)
+        except ValueError as e:
+            return Response({"error": str(e)}, status=400)
 
     def _broadcast_ticket_event(self, ticket: Ticket, event_type: str) -> None:
         channel_layer = get_channel_layer()
@@ -68,8 +116,16 @@ class TicketViewSet(viewsets.ModelViewSet):
             "status": ticket.status,
             "number": ticket.number,
         }
-        queue_group = f"queue:{ticket.tenant.slug}:{ticket.queue_id}"
-        ticket_group = f"ticket:{ticket.tenant.slug}:{ticket.id}"
+
+        # Sanitize group names: ensure valid characters and length < 100
+        # Valid characters: ASCII alphanumerics, hyphens, underscores, periods only
+        # Remove colons and other special characters, use periods or hyphens as separators
+        tenant_slug = ticket.tenant.slug.replace(" ", "-")
+        queue_id = str(ticket.queue_id)  # UUIDs are fine with hyphens
+        ticket_id = str(ticket.id)
+
+        queue_group = f"queue.{tenant_slug}.{queue_id}"
+        ticket_group = f"ticket.{tenant_slug}.{ticket_id}"
 
         async_to_sync(channel_layer.group_send)(
             queue_group,

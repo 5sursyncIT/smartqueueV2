@@ -35,11 +35,32 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class AgentProfileSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    queues = serializers.SerializerMethodField()
 
     class Meta:
         model = AgentProfile
-        fields = ("id", "user", "current_status", "status_updated_at")
-        read_only_fields = ("id", "user", "status_updated_at")
+        fields = ("id", "user", "current_status", "status_updated_at", "queues", "created_at", "updated_at")
+        read_only_fields = ("id", "user", "status_updated_at", "created_at", "updated_at")
+
+    def get_queues(self, obj):
+        """Retourne les queues assignées à cet agent."""
+        from apps.queues.models import QueueAssignment
+        assignments = QueueAssignment.objects.filter(
+            agent=obj,
+            is_active=True
+        ).select_related('queue__service')
+
+        return [
+            {
+                'id': str(assignment.queue.id),
+                'name': assignment.queue.name,
+                'service': {
+                    'id': str(assignment.queue.service.id),
+                    'name': assignment.queue.service.name,
+                } if assignment.queue.service else None,
+            }
+            for assignment in assignments
+        ]
 
 
 class AgentSerializer(serializers.ModelSerializer):
@@ -98,12 +119,16 @@ class AgentSerializer(serializers.ModelSerializer):
         assignments = QueueAssignment.objects.filter(
             agent=obj,
             is_active=True
-        ).select_related('queue')
+        ).select_related('queue__service')
 
         return [
             {
                 'id': str(assignment.queue.id),
                 'name': assignment.queue.name,
+                'service': {
+                    'id': str(assignment.queue.service.id),
+                    'name': assignment.queue.service.name,
+                } if assignment.queue.service else None,
             }
             for assignment in assignments
         ]
