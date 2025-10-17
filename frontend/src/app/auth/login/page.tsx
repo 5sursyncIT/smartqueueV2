@@ -122,14 +122,43 @@ export default function LoginPage() {
           <div className="mt-6 text-center text-sm">
             <span className="text-gray-600">
               Pas encore de compte ?{' '}
-              <Link 
-                href="/auth/register" 
+              <Link
+                href="/auth/register"
                 className="text-blue-600 hover:underline"
               >
                 Créer un compte
               </Link>
             </span>
           </div>
+
+          {/* Credentials de test - visible en développement uniquement */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+              <p className="font-semibold text-blue-900 mb-2">🔑 Credentials de test:</p>
+              <div className="space-y-3 text-left text-blue-800">
+                <div>
+                  <p className="font-medium text-blue-900">Clinique Madeleine:</p>
+                  <div className="ml-2 space-y-1">
+                    <div>
+                      <p className="text-xs text-blue-700">Admin:</p>
+                      <p className="font-mono text-xs">m.ndiaye@5sursync.com / admin123</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-blue-700">Agent:</p>
+                      <p className="font-mono text-xs">awa@clinique-madeleine.sn / admin123</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t border-blue-200 pt-2">
+                  <p className="font-medium text-blue-900">Demo Bank:</p>
+                  <div className="ml-2">
+                    <p className="text-xs text-blue-700">Admin:</p>
+                    <p className="font-mono text-xs">admin@demo-bank.com / admin123</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -56,15 +56,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
+      console.log('[AuthContext] Tentative de connexion:', { email });
       const { access, refresh } = await authApi.login({ email, password });
-      
+
+      console.log('[AuthContext] Tokens reçus, sauvegarde dans localStorage');
       localStorage.setItem('access_token', access);
       localStorage.setItem('refresh_token', refresh);
-      
+
+      console.log('[AuthContext] Récupération du profil utilisateur');
       const userData = await authApi.getProfile();
       setUser(userData);
-    } catch (error) {
-      console.error('Erreur de connexion:', error);
+      console.log('[AuthContext] Connexion réussie:', { userId: userData.id, email: userData.email });
+    } catch (error: any) {
+      console.error('[AuthContext] Erreur de connexion:', error);
+      if (error.response?.status === 401) {
+        console.error('[AuthContext] Credentials invalides pour:', email);
+      }
       throw error;
     } finally {
       setIsLoading(false);

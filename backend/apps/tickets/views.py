@@ -70,7 +70,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         self._broadcast_ticket_event(ticket, event_type="ticket.updated")
 
     @action(detail=True, methods=["post"])
-    def call(self, request, pk=None):  # type: ignore[override]
+    def call(self, request, pk=None, tenant_slug=None):  # type: ignore[override]
         ticket = self.get_object()
         ticket.status = Ticket.STATUS_CALLED
         ticket.called_at = timezone.now()

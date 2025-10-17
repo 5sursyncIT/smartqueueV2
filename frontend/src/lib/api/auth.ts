@@ -26,7 +26,10 @@ export interface User {
 export const authApi = {
   // Connexion utilisateur
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    console.log('[Auth API] Login request:', { email: credentials.email });
     const response = await apiClient.post('/auth/jwt/token/', credentials);
+    console.log('[Auth API] Login response status:', response.status);
+    console.log('[Auth API] Login response data keys:', Object.keys(response.data));
     return response.data;
   },
 
