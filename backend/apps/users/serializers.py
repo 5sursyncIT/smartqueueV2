@@ -11,6 +11,8 @@ from .models import AgentProfile, User
 
 
 class UserSerializer(serializers.ModelSerializer):
+    avatar_url = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = (
@@ -19,11 +21,22 @@ class UserSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone_number",
+            "avatar",
+            "avatar_url",
             "is_active",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "is_active", "created_at", "updated_at")
+        read_only_fields = ("id", "is_active", "created_at", "updated_at", "avatar_url")
+
+    def get_avatar_url(self, obj):
+        """Retourne l'URL complète de l'avatar si présent."""
+        if obj.avatar:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.avatar.url)
+            return obj.avatar.url
+        return None
 
 
 class ChangePasswordSerializer(serializers.Serializer):

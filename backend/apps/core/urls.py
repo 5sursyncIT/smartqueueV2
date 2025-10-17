@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from django.urls import include, path
 
+from apps.queues import public_views
+
 from .analytics_views import (
     AgentPerformanceReportView,
     QueueStatsReportView,
@@ -15,6 +17,27 @@ from .views import HealthcheckView
 public_urlpatterns = [
     path("auth/", include("apps.users.urls")),
     path("health/", HealthcheckView.as_view(), name="healthcheck"),
+    # Public tenants list
+    path(
+        "public/tenants/",
+        public_views.PublicTenantListView.as_view(),
+        name="public-tenant-list",
+    ),
+    path(
+        "public/tenants/<slug:tenant_slug>/queues/",
+        public_views.PublicQueueListView.as_view(),
+        name="public-queue-list",
+    ),
+    path(
+        "public/tenants/<slug:tenant_slug>/queues/<uuid:queue_id>/signup/",
+        public_views.QueueSignupView.as_view(),
+        name="public-queue-signup",
+    ),
+    path(
+        "public/tenants/<slug:tenant_slug>/tickets/<uuid:ticket_id>/",
+        public_views.PublicTicketStatusView.as_view(),
+        name="public-ticket-status",
+    ),
     # Super-admin endpoints
     path("admin/", include("apps.tenants.admin_urls")),
 ]

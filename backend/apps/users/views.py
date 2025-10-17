@@ -131,8 +131,12 @@ class AgentStatusViewSet(viewsets.ViewSet):
             return
         membership = profile.user.tenant_memberships.filter(is_active=True).first()
         tenant_slug = membership.tenant.slug if membership else "global"
+        # Sanitize group name: replace colons with periods, ensure valid characters
+        tenant_slug_clean = tenant_slug.replace(":", ".").replace(" ", "-")
+        user_id_clean = str(profile.user_id).replace(":", ".")
+
         async_to_sync(channel_layer.group_send)(
-            f"agent:{tenant_slug}:{profile.user_id}",
+            f"agent.{tenant_slug_clean}.{user_id_clean}",
             {
                 "type": "status_updated",
                 "payload": {

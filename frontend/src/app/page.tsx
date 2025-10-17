@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { contactApi } from "@/lib/api/contact";
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -60,13 +61,23 @@ export default function Home() {
     setIsSubmitting(true);
     setErrors({});
     
-    // Simuler l'envoi du formulaire
+    // Envoyer le formulaire à l'API
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await contactApi.createMessage({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        subject: formData.subject,
+        message: formData.message
+      });
+      
       setSubmitSuccess(true);
       setFormData({ firstName: "", lastName: "", email: "", subject: "", message: "" });
     } catch (error) {
       console.error("Erreur lors de l'envoi:", error);
+      setErrors({ 
+        submit: "Une erreur s'est produite lors de l'envoi du message. Veuillez réessayer." 
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -113,9 +124,18 @@ export default function Home() {
                 Contact
               </a>
             </div>
-            <Button variant="outline" size="sm">
-              Contact
-            </Button>
+            <div className="flex items-center space-x-3">
+              <Link href="/auth/login">
+                <Button variant="outline" size="sm" className="text-foreground border-foreground/20 hover:bg-foreground/10">
+                  Connexion
+                </Button>
+              </Link>
+              <Link href="/auth/register">
+                <Button size="sm">
+                  Inscription
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -226,7 +246,7 @@ export default function Home() {
                  </ul>
                  <div className="text-center pt-4">
                    <Button asChild className="w-full" size="lg">
-                     <Link href="/enterprise/subscribe">
+                     <Link href="/trial">
                        Démarrer l&apos;essai gratuit
                      </Link>
                    </Button>
@@ -285,7 +305,7 @@ export default function Home() {
                  </ul>
                  <div className="text-center pt-4">
                    <Button asChild variant="outline" className="w-full" size="lg">
-                     <Link href="/customer/register">
+                     <Link href="/organizations">
                        Rejoindre une file
                      </Link>
                    </Button>

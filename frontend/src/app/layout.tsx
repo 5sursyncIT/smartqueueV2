@@ -67,6 +67,9 @@ export const metadata: Metadata = {
   },
 };
 
+import { AuthProvider } from '@/contexts/AuthContext';
+import { Toaster } from 'sonner';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -77,7 +80,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );

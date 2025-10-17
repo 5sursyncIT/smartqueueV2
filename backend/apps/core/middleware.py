@@ -30,6 +30,7 @@ class TenantMiddleware:
                 "/api/v1/health",
                 "/api/v1/auth",
                 "/api/v1/admin",  # Super-admin endpoints
+                "/api/v1/public/tenants/",  # Liste publique des tenants (pas un tenant spécifique)
                 "/api/schema",
                 "/api/docs",
                 "/admin/login",

@@ -15,4 +15,5 @@ urlpatterns = [
         name="api-docs",
     ),
     path("api/v1/", include("apps.core.urls")),
+    path("api/v1/contact/", include("apps.contact.urls")),
 ]

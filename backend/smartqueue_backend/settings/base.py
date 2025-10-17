@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.feedback",
     "apps.displays",
+    "apps.contact",
 ]
 
 AUTH_USER_MODEL = "users.User"
@@ -269,7 +270,11 @@ CELERY_BEAT_SCHEDULE: dict[str, dict] = {
     },
 }
 
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001"])
+CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[
+    "http://localhost:3000", "http://127.0.0.1:3000",
+    "http://localhost:3001", "http://127.0.0.1:3001",
+    "http://localhost:3002", "http://127.0.0.1:3002",
+])
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -283,6 +288,10 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
     'x-tenant',
 ]
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=["http://localhost:3000", "http://localhost:3001"])
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+])
 
 TENANT_HEADER = "HTTP_X_TENANT"

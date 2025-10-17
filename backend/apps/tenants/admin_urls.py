@@ -5,9 +5,11 @@ from __future__ import annotations
 from rest_framework.routers import DefaultRouter
 
 from .admin_views import (
+    FeatureFlagViewSet,
     InvoiceAdminViewSet,
     SubscriptionAdminViewSet,
     SubscriptionPlanViewSet,
+    SystemConfigViewSet,
     TenantAdminViewSet,
     TenantMembershipAdminViewSet,
     TransactionViewSet,
@@ -20,5 +22,7 @@ router.register(r"subscriptions", SubscriptionAdminViewSet, basename="admin-subs
 router.register(r"invoices", InvoiceAdminViewSet, basename="admin-invoice")
 router.register(r"transactions", TransactionViewSet, basename="admin-transaction")
 router.register(r"memberships", TenantMembershipAdminViewSet, basename="admin-membership")
+router.register(r"system-config", SystemConfigViewSet, basename="admin-system-config")
+router.register(r"feature-flags", FeatureFlagViewSet, basename="admin-feature-flag")
 
 urlpatterns = router.urls
