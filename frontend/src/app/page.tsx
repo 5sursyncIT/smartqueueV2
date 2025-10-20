@@ -17,39 +17,39 @@ export default function Home() {
     message: ""
   });
   
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const validateForm = () => {
-    const newErrors = {};
-    
+  const validateForm = (): Record<string, string> => {
+    const newErrors: Record<string, string> = {};
+
     if (!formData.firstName.trim()) {
       newErrors.firstName = "Le prénom est requis";
     }
-    
+
     if (!formData.lastName.trim()) {
       newErrors.lastName = "Le nom est requis";
     }
-    
+
     if (!formData.email.trim()) {
       newErrors.email = "L'email est requis";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = "L'email n'est pas valide";
     }
-    
+
     if (!formData.subject.trim()) {
       newErrors.subject = "Le sujet est requis";
     }
-    
+
     if (!formData.message.trim()) {
       newErrors.message = "Le message est requis";
     }
-    
+
     return newErrors;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     const formErrors = validateForm();
@@ -83,13 +83,13 @@ export default function Home() {
     }
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { id, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [id]: value
     }));
-    
+
     // Effacer l'erreur quand l'utilisateur commence à taper
     if (errors[id]) {
       setErrors(prev => ({

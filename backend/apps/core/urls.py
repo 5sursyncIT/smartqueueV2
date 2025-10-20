@@ -3,6 +3,8 @@ from __future__ import annotations
 from django.urls import include, path
 
 from apps.queues import public_views
+from apps.displays.views import PublicDisplayTicketsView, PublicDisplayPingView
+from apps.displays.admin_views import DisplayAdminViewSet
 
 from .analytics_views import (
     AgentPerformanceReportView,
@@ -10,8 +12,11 @@ from .analytics_views import (
     SatisfactionReportView,
     WaitTimesReportView,
 )
-from .api_router import router
+from .api_router import router, register_router
 from .views import HealthcheckView
+
+# Register displays admin ViewSet for tenant-scoped CRUD
+register_router('displays', DisplayAdminViewSet, basename='display')
 
 # Non-tenant-scoped URLs (public or auth-related)
 public_urlpatterns = [
@@ -37,6 +42,17 @@ public_urlpatterns = [
         "public/tenants/<slug:tenant_slug>/tickets/<uuid:ticket_id>/",
         public_views.PublicTicketStatusView.as_view(),
         name="public-ticket-status",
+    ),
+    # Display screens (public access) - display IDs are char(32) not UUIDs
+    path(
+        "public/tenants/<slug:tenant_slug>/displays/<str:pk>/tickets/",
+        PublicDisplayTicketsView.as_view(),
+        name="public-display-tickets",
+    ),
+    path(
+        "public/tenants/<slug:tenant_slug>/displays/<str:pk>/ping/",
+        PublicDisplayPingView.as_view(),
+        name="public-display-ping",
     ),
     # Super-admin endpoints
     path("admin/", include("apps.tenants.admin_urls")),

@@ -167,6 +167,32 @@ class AgentViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
+        request={"counter_number": int},
+        responses={200: AgentSerializer},
+        summary="Mettre à jour mon profil agent",
+        description="Permet à un agent de mettre à jour son propre profil (ex: numéro de guichet).",
+    )
+    @action(detail=False, methods=["patch"], url_path="me", permission_classes=[IsTenantMember])
+    def update_my_profile(self, request, tenant_slug=None):
+        """Permet à un agent de mettre à jour son propre profil."""
+        try:
+            agent_profile = AgentProfile.objects.get(user=request.user)
+        except AgentProfile.DoesNotExist:
+            return Response(
+                {"error": "Vous n'avez pas de profil agent"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Mettre à jour les champs autorisés
+        counter_number = request.data.get("counter_number")
+        if counter_number is not None:
+            agent_profile.counter_number = counter_number
+            agent_profile.save()
+
+        serializer = self.get_serializer(agent_profile)
+        return Response(serializer.data)
+
+    @extend_schema(
         request=InviteAgentSerializer,
         responses={201: AgentSerializer},
         summary="Inviter un nouvel agent",

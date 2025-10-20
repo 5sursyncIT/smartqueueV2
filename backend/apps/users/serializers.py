@@ -12,6 +12,7 @@ from .models import AgentProfile, User
 
 class UserSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
+    agent_profile = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -23,11 +24,12 @@ class UserSerializer(serializers.ModelSerializer):
             "phone_number",
             "avatar",
             "avatar_url",
+            "agent_profile",
             "is_active",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "is_active", "created_at", "updated_at", "avatar_url")
+        read_only_fields = ("id", "is_active", "created_at", "updated_at", "avatar_url", "agent_profile")
 
     def get_avatar_url(self, obj):
         """Retourne l'URL complète de l'avatar si présent."""
@@ -37,6 +39,18 @@ class UserSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.avatar.url)
             return obj.avatar.url
         return None
+
+    def get_agent_profile(self, obj):
+        """Retourne le profil agent si l'utilisateur est un agent."""
+        try:
+            profile = AgentProfile.objects.get(user=obj)
+            return {
+                "id": str(profile.id),
+                "counter_number": profile.counter_number,
+                "current_status": profile.current_status,
+            }
+        except AgentProfile.DoesNotExist:
+            return None
 
 
 class ChangePasswordSerializer(serializers.Serializer):
@@ -52,7 +66,7 @@ class AgentProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AgentProfile
-        fields = ("id", "user", "current_status", "status_updated_at", "queues", "created_at", "updated_at")
+        fields = ("id", "user", "current_status", "status_updated_at", "counter_number", "queues", "created_at", "updated_at")
         read_only_fields = ("id", "user", "status_updated_at", "created_at", "updated_at")
 
     def get_queues(self, obj):
@@ -100,16 +114,18 @@ class AgentSerializer(serializers.ModelSerializer):
             "user",
             "user_email",
             "status",
+            "current_status",
             "is_active",
             "site",
             "site_id",
             "queues",
             "queue_ids",
             "max_concurrent_tickets",
+            "status_updated_at",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "created_at", "updated_at")
+        read_only_fields = ("id", "current_status", "status_updated_at", "created_at", "updated_at")
 
     def get_site(self, obj):
         """Retourne le site principal basé sur les queues assignées."""

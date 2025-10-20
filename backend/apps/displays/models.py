@@ -33,9 +33,34 @@ class Display(TenantAwareModel):
         blank=True,
         help_text="Files affichées sur cet écran",
     )
-    layout = models.CharField(max_length=50, default="grid", help_text="grid, list, etc.")
+    layout = models.CharField(max_length=50, default="split", help_text="split, grid, list, fullscreen")
     theme = models.JSONField(default=dict, blank=True, help_text="Personnalisation couleurs/logo")
     auto_refresh_seconds = models.IntegerField(default=10)
+
+    # Personnalisation visuelle
+    show_video = models.BooleanField(default=True, help_text="Afficher la zone vidéo/image")
+    video_url = models.URLField(blank=True, null=True, help_text="URL vidéo YouTube, Vimeo, ou fichier")
+    background_image = models.URLField(blank=True, null=True, help_text="Image de fond pour la zone média")
+
+    # Messages personnalisables
+    custom_message = models.TextField(
+        blank=True,
+        default="Votre bannière de messages à la clientèle",
+        help_text="Message principal affiché en bas de l'écran"
+    )
+    secondary_message = models.TextField(blank=True, help_text="Message secondaire (défilant)")
+    message_position = models.CharField(
+        max_length=20,
+        default="bottom",
+        choices=[("top", "Haut"), ("bottom", "Bas"), ("both", "Haut et Bas")],
+    )
+
+    # Couleurs tickets (pour différencier les files)
+    ticket_colors = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='{"queue_id": "#color"} - Couleur par file'
+    )
 
     # État
     is_active = models.BooleanField(default=True)

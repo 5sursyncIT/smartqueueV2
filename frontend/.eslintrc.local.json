@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "@typescript-eslint/no-explicit-any": ["warn", {
+      "ignoreRestArgs": true,
+      "fixToUnknown": true
+    }]
+  }
+}

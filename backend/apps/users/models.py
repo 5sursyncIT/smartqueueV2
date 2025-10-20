@@ -80,6 +80,7 @@ class AgentProfile(TimeStampedModel):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="agent_profile")
     current_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_AVAILABLE)
     status_updated_at = models.DateTimeField(default=timezone.now)
+    counter_number = models.IntegerField(null=True, blank=True, help_text="Numéro du guichet de l'agent")
 
     class Meta:
         db_table = "agent_profiles"

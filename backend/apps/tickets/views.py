@@ -71,19 +71,70 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def call(self, request, pk=None, tenant_slug=None):  # type: ignore[override]
+        """Appelle un ticket et l'assigne automatiquement à l'agent."""
+        from apps.users.models import AgentProfile
+
         ticket = self.get_object()
+
+        # Assigner l'agent qui appelle le ticket
+        try:
+            agent_profile = AgentProfile.objects.get(user=request.user)
+            ticket.agent = agent_profile
+        except AgentProfile.DoesNotExist:
+            return Response(
+                {"error": "Vous devez avoir un profil agent pour appeler des tickets"},
+                status=400
+            )
+
         ticket.status = Ticket.STATUS_CALLED
         ticket.called_at = timezone.now()
-        ticket.save(update_fields=["status", "called_at"])
+        ticket.save(update_fields=["status", "called_at", "agent"])
         self._broadcast_ticket_event(ticket, event_type="ticket.called")
         return Response(self.get_serializer(ticket).data)
 
     @action(detail=True, methods=["post"])
     def start_service(self, request, pk=None, tenant_slug=None):  # type: ignore[override]
-        """Démarre le service pour un ticket appelé."""
+        """Démarre le service pour un ticket appelé. Seul l'agent assigné ou un admin peut démarrer."""
         from apps.queues.services import QueueService
+        from apps.users.models import AgentProfile
+        from apps.tenants.models import TenantMembership
 
         ticket = self.get_object()
+
+        # Vérifier les permissions : seul l'agent assigné ou un admin peut démarrer le service
+        try:
+            agent_profile = AgentProfile.objects.get(user=request.user)
+        except AgentProfile.DoesNotExist:
+            # Si l'utilisateur n'est pas un agent, vérifier s'il est admin
+            membership = TenantMembership.objects.filter(
+                user=request.user,
+                tenant=request.tenant,
+                is_active=True
+            ).first()
+
+            if not membership or membership.role not in [TenantMembership.ROLE_ADMIN, TenantMembership.ROLE_MANAGER]:
+                return Response(
+                    {"error": "Vous devez être un agent ou un administrateur pour démarrer le service"},
+                    status=403
+                )
+        else:
+            # Si c'est un agent, vérifier que c'est bien l'agent assigné au ticket
+            membership = TenantMembership.objects.filter(
+                user=request.user,
+                tenant=request.tenant,
+                is_active=True
+            ).first()
+
+            # Autoriser si l'agent est assigné au ticket OU si c'est un admin/manager
+            is_assigned_agent = ticket.agent and ticket.agent.id == agent_profile.id
+            is_admin_or_manager = membership and membership.role in [TenantMembership.ROLE_ADMIN, TenantMembership.ROLE_MANAGER]
+
+            if not (is_assigned_agent or is_admin_or_manager):
+                return Response(
+                    {"error": "Vous ne pouvez démarrer le service que pour les tickets qui vous sont assignés"},
+                    status=403
+                )
+
         try:
             ticket = QueueService.start_service(ticket)
             self._broadcast_ticket_event(ticket, event_type="ticket.started")
@@ -93,10 +144,47 @@ class TicketViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def close(self, request, pk=None, tenant_slug=None):  # type: ignore[override]
-        """Ferme un ticket terminé."""
+        """Ferme un ticket terminé. Seul l'agent assigné ou un admin peut clôturer."""
         from apps.queues.services import QueueService
+        from apps.users.models import AgentProfile
+        from apps.tenants.models import TenantMembership
 
         ticket = self.get_object()
+
+        # Vérifier les permissions : seul l'agent assigné ou un admin peut clôturer
+        try:
+            agent_profile = AgentProfile.objects.get(user=request.user)
+        except AgentProfile.DoesNotExist:
+            # Si l'utilisateur n'est pas un agent, vérifier s'il est admin
+            membership = TenantMembership.objects.filter(
+                user=request.user,
+                tenant=request.tenant,
+                is_active=True
+            ).first()
+
+            if not membership or membership.role not in [TenantMembership.ROLE_ADMIN, TenantMembership.ROLE_MANAGER]:
+                return Response(
+                    {"error": "Vous devez être un agent ou un administrateur pour clôturer des tickets"},
+                    status=403
+                )
+        else:
+            # Si c'est un agent, vérifier que c'est bien l'agent assigné au ticket
+            membership = TenantMembership.objects.filter(
+                user=request.user,
+                tenant=request.tenant,
+                is_active=True
+            ).first()
+
+            # Autoriser si l'agent est assigné au ticket OU si c'est un admin/manager
+            is_assigned_agent = ticket.agent and ticket.agent.id == agent_profile.id
+            is_admin_or_manager = membership and membership.role in [TenantMembership.ROLE_ADMIN, TenantMembership.ROLE_MANAGER]
+
+            if not (is_assigned_agent or is_admin_or_manager):
+                return Response(
+                    {"error": "Vous ne pouvez clôturer que les tickets qui vous sont assignés"},
+                    status=403
+                )
+
         try:
             ticket = QueueService.close_ticket(ticket)
             self._broadcast_ticket_event(ticket, event_type="ticket.closed")
@@ -141,6 +229,38 @@ class TicketViewSet(viewsets.ModelViewSet):
                 "payload": payload,
             },
         )
+
+        # If ticket is called, broadcast to all displays showing this queue
+        if event_type == "ticket.called":
+            from apps.displays.models import Display
+            displays = Display.objects.filter(
+                tenant=ticket.tenant,
+                queues=ticket.queue,
+                is_active=True
+            )
+
+            # Build ticket data for display
+            ticket_data = {
+                "id": str(ticket.id),
+                "number": ticket.number,
+                "queue_name": ticket.queue.name,
+                "queue_id": str(ticket.queue_id),
+                "status": ticket.status,
+                "called_at": ticket.called_at.isoformat() if ticket.called_at else None,
+                "agent_name": f"{ticket.agent.user.first_name} {ticket.agent.user.last_name}" if ticket.agent else None,
+                "counter": ticket.agent.counter_number if ticket.agent and ticket.agent.counter_number else None,
+            }
+
+            # Send to each display
+            for display in displays:
+                display_group = f"display_{tenant_slug}_{str(display.id)}"
+                async_to_sync(channel_layer.group_send)(
+                    display_group,
+                    {
+                        "type": "ticket_called",
+                        "ticket": ticket_data,
+                    },
+                )
 
 
 class AppointmentViewSet(viewsets.ModelViewSet):

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 
 export interface ApiCallOptions<T> {
   onSuccess?: (data: T) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onError?: (error: any) => void;
   onFinally?: () => void;
 }
@@ -9,6 +10,7 @@ export interface ApiCallOptions<T> {
 export interface ApiCallState<T> {
   data: T | null;
   isLoading: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   error: any;
   isSuccess: boolean;
   isError: boolean;

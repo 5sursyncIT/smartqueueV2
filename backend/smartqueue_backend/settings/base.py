@@ -36,7 +36,7 @@ if ENV_FILE.exists():
 
 DEBUG = env("DEBUG")
 SECRET_KEY = env("SECRET_KEY")
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
+# ALLOWED_HOSTS est maintenant défini plus bas avec la configuration WebSocket
 
 INSTALLED_APPS = [
     # Django core
@@ -293,5 +293,16 @@ CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[
     "http://localhost:3001",
     "http://localhost:3002",
 ])
+
+# Configuration pour les WebSockets
+CORS_ALLOW_ALL_ORIGINS = False  # Sécurité : ne pas autoriser toutes les origines
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https?://localhost:\d+$",
+    r"^https?://127\.0\.0\.1:\d+$",
+]
+
+# Configuration spécifique pour les WebSockets (Channels ne supporte pas CORS nativement)
+# Les WebSockets utilisent un mécanisme différent pour la validation des origines
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "0.0.0.0"])
 
 TENANT_HEADER = "HTTP_X_TENANT"

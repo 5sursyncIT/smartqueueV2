@@ -20,6 +20,21 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    rules: {
+      // Allow unescaped entities for French apostrophes
+      "react/no-unescaped-entities": "off",
+      // Warn on unused vars instead of error
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }],
+      // Allow empty interfaces (for extending types)
+      "@typescript-eslint/no-empty-object-type": "off",
+      // Warn on explicit any instead of error (allow when necessary for error handling)
+      "@typescript-eslint/no-explicit-any": "warn",
+    },
+  },
 ];
 
 export default eslintConfig;

@@ -67,10 +67,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const userData = await authApi.getProfile();
       setUser(userData);
       console.log('[AuthContext] Connexion réussie:', { userId: userData.id, email: userData.email });
-    } catch (error: any) {
+    } catch (error) {
       console.error('[AuthContext] Erreur de connexion:', error);
-      if (error.response?.status === 401) {
-        console.error('[AuthContext] Credentials invalides pour:', email);
+      if (error && typeof error === 'object' && 'response' in error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status === 401) {
+          console.error('[AuthContext] Credentials invalides pour:', email);
+        }
       }
       throw error;
     } finally {

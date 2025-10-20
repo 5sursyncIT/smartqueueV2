@@ -17,6 +17,7 @@ class TicketSerializer(serializers.ModelSerializer):
     agent = AgentProfileSerializer(read_only=True)
     customer = CustomerSerializer(read_only=True)
     customer_id = serializers.UUIDField(write_only=True, required=False)
+    wait_time_seconds = serializers.SerializerMethodField()
 
     class Meta:
         model = Ticket
@@ -30,6 +31,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "priority",
             "status",
             "eta_seconds",
+            "wait_time_seconds",
             "agent",
             "customer",
             "customer_id",
@@ -48,6 +50,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "number",  # Le numéro est généré automatiquement
             "status",  # Le statut initial est défini automatiquement
             "eta_seconds",
+            "wait_time_seconds",
             "agent",  # L'agent est assigné plus tard
             "called_at",
             "started_at",
@@ -56,6 +59,13 @@ class TicketSerializer(serializers.ModelSerializer):
             "updated_at",
             "customer",
         )
+
+    def get_wait_time_seconds(self, obj):
+        """Calcule le temps d'attente en secondes (de created_at à called_at)."""
+        if obj.called_at and obj.created_at:
+            delta = obj.called_at - obj.created_at
+            return int(delta.total_seconds())
+        return None
 
     def create(self, validated_data):  # type: ignore[override]
         request = self.context["request"]
