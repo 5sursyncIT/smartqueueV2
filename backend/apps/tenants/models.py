@@ -82,45 +82,45 @@ class TenantMembership(TimeStampedModel):
         return f"{self.user} @ {self.tenant}"
 
 
+# NOTE: Subscription models are defined below in this file
+# apps/subscriptions is not in INSTALLED_APPS and should not be imported
+# The duplication will be resolved in a future phase (Phase 1 of subscription audit)
+
+
 class SubscriptionPlan(TimeStampedModel):
-    """Plan d'abonnement avec tarification et features."""
+    """Plan de souscription avec quotas."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     slug = models.SlugField(unique=True)
     description = models.TextField(blank=True)
 
-    # Tarification
-    price_monthly = models.DecimalField(max_digits=10, decimal_places=2)
-    price_yearly = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3, default="XOF")  # ISO 4217
+    # Quotas
+    max_sites = models.PositiveIntegerField(default=1)
+    max_agents = models.PositiveIntegerField(default=5)
+    max_queues = models.PositiveIntegerField(default=3)
+    max_tickets_per_month = models.PositiveIntegerField(default=500)
 
-    # Features (liste de strings)
-    features = models.JSONField(default=list)
+    # Pricing
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    yearly_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    currency = models.CharField(max_length=3, default="XOF")
 
-    # Limites
-    max_sites = models.IntegerField(default=1)
-    max_agents = models.IntegerField(default=5)
-    max_queues = models.IntegerField(default=3)
-    max_tickets_per_month = models.IntegerField(default=500)
+    # Features
+    features = models.JSONField(default=list, blank=True)
 
-    # Statut
+    # Status
     is_active = models.BooleanField(default=True)
-    is_featured = models.BooleanField(default=False)
+    display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
         db_table = "subscription_plans"
-        ordering = ["price_monthly"]
-        verbose_name = "Plan d'abonnement"
-        verbose_name_plural = "Plans d'abonnement"
+        ordering = ["display_order", "name"]
+        verbose_name = "Plan de souscription"
+        verbose_name_plural = "Plans de souscription"
 
     def __str__(self) -> str:
-        return f"{self.name} - {self.price_monthly} {self.currency}/mois"
-
-    @property
-    def organizations_count(self) -> int:
-        """Nombre d'organisations abonnées à ce plan."""
-        return Subscription.objects.filter(plan=self.slug, status="active").count()
+        return self.name
 
 
 class Subscription(TimeStampedModel):
@@ -150,7 +150,7 @@ class Subscription(TimeStampedModel):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant = models.OneToOneField(Tenant, on_delete=models.CASCADE, related_name="subscription")
-    plan = models.CharField(max_length=50)  # trial, starter, business, enterprise
+    plan = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT, related_name="subscriptions")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_TRIAL)
     billing_cycle = models.CharField(
         max_length=20, choices=BILLING_CYCLE_CHOICES, default=BILLING_CYCLE_MONTHLY
@@ -494,3 +494,173 @@ class CouponUsage(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.coupon.code} utilisé par {self.tenant.name}"
+
+
+class PaymentPlan(TimeStampedModel):
+    """Plan de paiement échelonné pour factures impayées."""
+
+    STATUS_PROPOSED = "proposed"
+    STATUS_ACCEPTED = "accepted"
+    STATUS_ACTIVE = "active"
+    STATUS_COMPLETED = "completed"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_DEFAULTED = "defaulted"
+
+    STATUS_CHOICES = [
+        (STATUS_PROPOSED, "Proposé"),
+        (STATUS_ACCEPTED, "Accepté"),
+        (STATUS_ACTIVE, "En cours"),
+        (STATUS_COMPLETED, "Complété"),
+        (STATUS_CANCELLED, "Annulé"),
+        (STATUS_DEFAULTED, "En défaut"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="payment_plans")
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="payment_plans")
+
+    # Montants
+    total_amount = models.PositiveIntegerField()  # Montant total à payer
+    amount_paid = models.PositiveIntegerField(default=0)  # Montant déjà payé
+    currency = models.CharField(max_length=3, default="XOF")
+
+    # Configuration
+    number_of_installments = models.PositiveIntegerField()  # Nombre d'échéances
+    installment_amount = models.PositiveIntegerField()  # Montant par échéance
+    frequency_days = models.PositiveIntegerField(default=30)  # Fréquence en jours (ex: 30 = mensuel)
+
+    # Dates
+    start_date = models.DateField()  # Date de début du plan
+    proposed_at = models.DateTimeField(auto_now_add=True)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+
+    # État
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PROPOSED)
+    notes = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = "payment_plans"
+        ordering = ["-created_at"]
+        verbose_name = "Plan de paiement"
+        verbose_name_plural = "Plans de paiement"
+
+    def __str__(self) -> str:
+        return f"Plan {self.invoice.invoice_number} - {self.number_of_installments} échéances"
+
+    @property
+    def amount_due(self) -> int:
+        return self.total_amount - self.amount_paid
+
+
+class PaymentPlanInstallment(TimeStampedModel):
+    """Échéance d'un plan de paiement."""
+
+    STATUS_PENDING = "pending"
+    STATUS_PAID = "paid"
+    STATUS_OVERDUE = "overdue"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "En attente"),
+        (STATUS_PAID, "Payée"),
+        (STATUS_OVERDUE, "En retard"),
+        (STATUS_CANCELLED, "Annulée"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    payment_plan = models.ForeignKey(
+        PaymentPlan, on_delete=models.CASCADE, related_name="installments"
+    )
+
+    # Informations de l'échéance
+    installment_number = models.PositiveIntegerField()  # Numéro de l'échéance (1, 2, 3...)
+    amount = models.PositiveIntegerField()  # Montant de cette échéance
+    due_date = models.DateField()  # Date d'échéance
+
+    # Paiement
+    paid_at = models.DateTimeField(null=True, blank=True)
+    transaction = models.ForeignKey(
+        Transaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="installment_payments",
+    )
+
+    # État
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    class Meta:
+        db_table = "payment_plan_installments"
+        ordering = ["installment_number"]
+        unique_together = ("payment_plan", "installment_number")
+        verbose_name = "Échéance de plan"
+        verbose_name_plural = "Échéances de plan"
+
+    def __str__(self) -> str:
+        return f"Échéance {self.installment_number}/{self.payment_plan.number_of_installments}"
+
+
+class DunningAction(TimeStampedModel):
+    """Action de relance pour factures impayées (dunning)."""
+
+    ACTION_EMAIL = "email"
+    ACTION_SMS = "sms"
+    ACTION_CALL = "call"
+    ACTION_SUSPENSION = "suspension"
+    ACTION_LEGAL = "legal"
+
+    ACTION_TYPE_CHOICES = [
+        (ACTION_EMAIL, "Email de relance"),
+        (ACTION_SMS, "SMS de relance"),
+        (ACTION_CALL, "Appel téléphonique"),
+        (ACTION_SUSPENSION, "Suspension du service"),
+        (ACTION_LEGAL, "Action légale"),
+    ]
+
+    STATUS_SCHEDULED = "scheduled"
+    STATUS_SENT = "sent"
+    STATUS_FAILED = "failed"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_SCHEDULED, "Planifiée"),
+        (STATUS_SENT, "Envoyée"),
+        (STATUS_FAILED, "Échouée"),
+        (STATUS_CANCELLED, "Annulée"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="dunning_actions")
+    invoice = models.ForeignKey(Invoice, on_delete=models.CASCADE, related_name="dunning_actions")
+
+    # Type et timing
+    action_type = models.CharField(max_length=20, choices=ACTION_TYPE_CHOICES)
+    days_overdue = models.PositiveIntegerField()  # Nombre de jours de retard lors de l'action
+    scheduled_for = models.DateTimeField()  # Quand l'action doit être exécutée
+    executed_at = models.DateTimeField(null=True, blank=True)  # Quand elle a été exécutée
+
+    # État
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_SCHEDULED)
+    result_message = models.TextField(blank=True)  # Message de résultat (succès/erreur)
+
+    # Contenu
+    email_subject = models.CharField(max_length=255, blank=True)
+    email_body = models.TextField(blank=True)
+    sms_body = models.TextField(blank=True)
+
+    # Métadonnées
+    metadata = models.JSONField(default=dict, blank=True)
+    notes = models.TextField(blank=True)  # Notes internes
+
+    class Meta:
+        db_table = "dunning_actions"
+        ordering = ["-scheduled_for"]
+        verbose_name = "Action de relance"
+        verbose_name_plural = "Actions de relance"
+
+    def __str__(self) -> str:
+        return f"{self.get_action_type_display()} - {self.invoice.invoice_number} ({self.days_overdue}j)"

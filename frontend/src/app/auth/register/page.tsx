@@ -42,28 +42,54 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // TODO: Implémenter l'appel API d'inscription
-      console.log('Données d\'inscription:', data);
-      
-      // Simuler une inscription réussie
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Rediriger vers la page de connexion avec message de succès
-      router.push('/auth/login?message=Compte créé avec succès');
+      // Appel API pour créer le compte
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_URL}/api/v1/auth/users/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: data.email,
+          first_name: data.firstName,
+          last_name: data.lastName,
+          password: data.password,
+          phone_number: '',
+          base_url: typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        if (response.status === 409 || errorData.email) {
+          setError('email', {
+            type: 'manual',
+            message: errorData.email?.[0] || 'Cet email est déjà utilisé'
+          });
+          return;
+        }
+
+        throw new Error(errorData.message || 'Erreur lors de la création du compte');
+      }
+
+      const result = await response.json();
+      console.log('Utilisateur créé:', result);
+
+      // Vérifier si la vérification email est requise
+      if (result.verification_email_sent) {
+        // Rediriger vers la page de vérification email
+        router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+      } else {
+        // Si pas de vérification requise, rediriger vers login
+        router.push('/auth/login?message=Compte créé avec succès');
+      }
     } catch (error: any) {
       console.error('Registration error:', error);
-      
-      if (error.response?.status === 409) {
-        setError('email', { 
-          type: 'manual', 
-          message: 'Cet email est déjà utilisé' 
-        });
-      } else {
-        setError('root', { 
-          type: 'manual', 
-          message: 'Erreur lors de la création du compte. Veuillez réessayer.' 
-        });
-      }
+      setError('root', {
+        type: 'manual',
+        message: error.message || 'Erreur lors de la création du compte. Veuillez réessayer.'
+      });
     } finally {
       setIsLoading(false);
     }

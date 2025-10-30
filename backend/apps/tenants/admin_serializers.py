@@ -5,8 +5,11 @@ from __future__ import annotations
 from rest_framework import serializers
 
 from .models import (
+    DunningAction,
     Invoice,
     PaymentMethod,
+    PaymentPlan,
+    PaymentPlanInstallment,
     Subscription,
     SubscriptionPlan,
     Tenant,
@@ -82,7 +85,11 @@ class TenantAdminSerializer(serializers.ModelSerializer):
             sub = obj.subscription
             return {
                 "status": sub.status,
-                "plan": sub.plan,
+                "plan": {
+                    "id": str(sub.plan.id),
+                    "name": sub.plan.name,
+                    "slug": sub.plan.slug,
+                },
                 "is_trial": sub.is_trial,
                 "current_period_end": sub.current_period_end,
             }
@@ -124,7 +131,10 @@ class SubscriptionAdminSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     def get_monthly_price_display(self, obj):
-        """Convertit les centimes en euros."""
+        """Format monthly price with currency."""
+        # XOF is stored as full francs, EUR/USD as centimes
+        if obj.currency == "XOF":
+            return f"{obj.monthly_price:,} {obj.currency}".replace(',', ' ')
         return f"{obj.monthly_price / 100:.2f} {obj.currency}"
 
 
@@ -169,9 +179,15 @@ class InvoiceAdminSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at", "updated_at"]
 
     def get_total_display(self, obj):
+        # XOF is stored as full francs, EUR/USD as centimes
+        if obj.currency == "XOF":
+            return f"{obj.total:,} {obj.currency}".replace(',', ' ')
         return f"{obj.total / 100:.2f} {obj.currency}"
 
     def get_amount_due_display(self, obj):
+        # XOF is stored as full francs, EUR/USD as centimes
+        if obj.currency == "XOF":
+            return f"{obj.amount_due:,} {obj.currency}".replace(',', ' ')
         return f"{obj.amount_due / 100:.2f} {obj.currency}"
 
 
@@ -231,8 +247,8 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "name",
             "slug",
             "description",
-            "price_monthly",
-            "price_yearly",
+            "monthly_price",
+            "yearly_price",
             "currency",
             "features",
             "max_sites",
@@ -240,7 +256,7 @@ class SubscriptionPlanSerializer(serializers.ModelSerializer):
             "max_queues",
             "max_tickets_per_month",
             "is_active",
-            "is_featured",
+            "display_order",
             "organizations_count",
             "created_at",
             "updated_at",
@@ -285,6 +301,9 @@ class TransactionAdminSerializer(serializers.ModelSerializer):
 
     def get_amount_display(self, obj):
         """Format amount with currency."""
+        # XOF is stored as full francs, EUR/USD as centimes
+        if obj.currency == "XOF":
+            return f"{obj.amount:,} {obj.currency}".replace(',', ' ')
         return f"{obj.amount / 100:.2f} {obj.currency}"
 
     def get_payment_method_name(self, obj):
@@ -292,3 +311,123 @@ class TransactionAdminSerializer(serializers.ModelSerializer):
         if obj.payment_method:
             return obj.payment_method.get_payment_type_display()
         return None
+
+
+class PaymentPlanInstallmentSerializer(serializers.ModelSerializer):
+    """Serializer pour les échéances de plan de paiement."""
+
+    amount_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentPlanInstallment
+        fields = [
+            "id",
+            "installment_number",
+            "amount",
+            "amount_display",
+            "due_date",
+            "paid_at",
+            "status",
+        ]
+
+    def get_amount_display(self, obj):
+        """Format amount with currency."""
+        currency = obj.payment_plan.currency
+        if currency == "XOF":
+            return f"{obj.amount:,} {currency}".replace(',', ' ')
+        return f"{obj.amount / 100:.2f} {currency}"
+
+
+class PaymentPlanSerializer(serializers.ModelSerializer):
+    """Serializer pour les plans de paiement."""
+
+    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
+    tenant_slug = serializers.CharField(source="tenant.slug", read_only=True)
+    invoice_number = serializers.CharField(source="invoice.invoice_number", read_only=True)
+    installments = PaymentPlanInstallmentSerializer(many=True, read_only=True)
+    total_amount_display = serializers.SerializerMethodField()
+    amount_paid_display = serializers.SerializerMethodField()
+    amount_due_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentPlan
+        fields = [
+            "id",
+            "tenant",
+            "tenant_name",
+            "tenant_slug",
+            "invoice",
+            "invoice_number",
+            "total_amount",
+            "total_amount_display",
+            "amount_paid",
+            "amount_paid_display",
+            "amount_due",
+            "amount_due_display",
+            "currency",
+            "number_of_installments",
+            "installment_amount",
+            "frequency_days",
+            "start_date",
+            "proposed_at",
+            "accepted_at",
+            "completed_at",
+            "cancelled_at",
+            "status",
+            "notes",
+            "installments",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_total_amount_display(self, obj):
+        """Format total amount with currency."""
+        if obj.currency == "XOF":
+            return f"{obj.total_amount:,} {obj.currency}".replace(',', ' ')
+        return f"{obj.total_amount / 100:.2f} {obj.currency}"
+
+    def get_amount_paid_display(self, obj):
+        """Format amount paid with currency."""
+        if obj.currency == "XOF":
+            return f"{obj.amount_paid:,} {obj.currency}".replace(',', ' ')
+        return f"{obj.amount_paid / 100:.2f} {obj.currency}"
+
+    def get_amount_due_display(self, obj):
+        """Format amount due with currency."""
+        amount_due = obj.amount_due
+        if obj.currency == "XOF":
+            return f"{amount_due:,} {obj.currency}".replace(',', ' ')
+        return f"{amount_due / 100:.2f} {obj.currency}"
+
+
+class DunningActionSerializer(serializers.ModelSerializer):
+    """Serializer pour les actions de relance."""
+
+    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
+    invoice_number = serializers.CharField(source="invoice.invoice_number", read_only=True)
+    action_type_display = serializers.CharField(source="get_action_type_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = DunningAction
+        fields = [
+            "id",
+            "tenant",
+            "tenant_name",
+            "invoice",
+            "invoice_number",
+            "action_type",
+            "action_type_display",
+            "days_overdue",
+            "scheduled_for",
+            "executed_at",
+            "status",
+            "status_display",
+            "result_message",
+            "email_subject",
+            "email_body",
+            "sms_body",
+            "notes",
+            "metadata",
+            "created_at",
+        ]

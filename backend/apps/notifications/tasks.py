@@ -34,12 +34,12 @@ def send_notification(notification_id: str) -> bool:
         elif notification.channel == "push":
             return _send_push(notification)
         else:
-            notification.status = Notification.STATUS_FAILED
+            notification.status = "failed"
             notification.error_message = f"Canal non supporté: {notification.channel}"
             notification.save()
             return False
     except Exception as e:
-        notification.status = Notification.STATUS_FAILED
+        notification.status = "failed"
         notification.error_message = str(e)
         notification.save()
         return False
@@ -52,7 +52,7 @@ def _send_sms(notification: Notification) -> bool:
     # Vérifier que les credentials Twilio sont configurés
     if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
         # Fallback en mode développement sans credentials
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.save()
         return True
@@ -67,13 +67,13 @@ def _send_sms(notification: Notification) -> bool:
             to=notification.recipient
         )
 
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.provider_id = message.sid
         notification.save()
         return True
     except Exception as e:
-        notification.status = Notification.STATUS_FAILED
+        notification.status = "failed"
         notification.error_message = f"Erreur Twilio: {str(e)}"
         notification.save()
         raise
@@ -97,12 +97,12 @@ def _send_email(notification: Notification) -> bool:
                 html_message=notification.body,
                 fail_silently=False,
             )
-            notification.status = Notification.STATUS_SENT
+            notification.status = "sent"
             notification.sent_at = timezone.now()
             notification.save()
             return True
         except Exception as e:
-            notification.status = Notification.STATUS_FAILED
+            notification.status = "failed"
             notification.error_message = f"Erreur SMTP: {str(e)}"
             notification.save()
             raise
@@ -122,13 +122,13 @@ def _send_email(notification: Notification) -> bool:
         sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
         response = sg.send(message)
 
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.provider_id = response.headers.get('X-Message-Id', '')
         notification.save()
         return True
     except Exception as e:
-        notification.status = Notification.STATUS_FAILED
+        notification.status = "failed"
         notification.error_message = f"Erreur SendGrid: {str(e)}"
         notification.save()
         raise
@@ -141,7 +141,7 @@ def _send_whatsapp(notification: Notification) -> bool:
     # Vérifier que les credentials Twilio sont configurés
     if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
         # Fallback en mode développement
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.save()
         return True
@@ -163,13 +163,13 @@ def _send_whatsapp(notification: Notification) -> bool:
             to=whatsapp_to
         )
 
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.provider_id = message.sid
         notification.save()
         return True
     except Exception as e:
-        notification.status = Notification.STATUS_FAILED
+        notification.status = "failed"
         notification.error_message = f"Erreur Twilio WhatsApp: {str(e)}"
         notification.save()
         raise
@@ -182,7 +182,7 @@ def _send_push(notification: Notification) -> bool:
     # Vérifier que Firebase est configuré
     if not settings.FIREBASE_CREDENTIALS_PATH and not settings.FCM_SERVER_KEY:
         # Fallback en mode développement
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.save()
         return True
@@ -212,13 +212,13 @@ def _send_push(notification: Notification) -> bool:
         # Envoyer
         response = messaging.send(message)
 
-        notification.status = Notification.STATUS_SENT
+        notification.status = "sent"
         notification.sent_at = timezone.now()
         notification.provider_id = response
         notification.save()
         return True
     except Exception as e:
-        notification.status = Notification.STATUS_FAILED
+        notification.status = "failed"
         notification.error_message = f"Erreur FCM: {str(e)}"
         notification.save()
         raise

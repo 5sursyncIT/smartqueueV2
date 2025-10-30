@@ -14,6 +14,12 @@ from .analytics_views import (
 )
 from .api_router import router, register_router
 from .views import HealthcheckView
+from .views_system import (
+    get_system_config,
+    update_system_config,
+    test_smtp_config,
+    get_smtp_status,
+)
 
 # Register displays admin ViewSet for tenant-scoped CRUD
 register_router('displays', DisplayAdminViewSet, basename='display')
@@ -56,6 +62,11 @@ public_urlpatterns = [
     ),
     # Super-admin endpoints
     path("admin/", include("apps.tenants.admin_urls")),
+    # System configuration
+    path("admin/system/config/", get_system_config, name="system-config-get"),
+    path("admin/system/config/update/", update_system_config, name="system-config-update"),
+    path("admin/system/smtp/test/", test_smtp_config, name="smtp-test"),
+    path("admin/system/smtp/status/", get_smtp_status, name="smtp-status"),
 ]
 
 # Tenant-scoped URLs (require tenant context)

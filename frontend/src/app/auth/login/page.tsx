@@ -39,19 +39,22 @@ export default function LoginPage() {
 
     try {
       await login(data.email, data.password);
-      router.push('/dashboard');
+
+      // Redirection vers le back office (port 3000) après connexion
+      // Le back office contient les dashboards pour les différents rôles
+      window.location.href = 'http://localhost:3000';
     } catch (error: any) {
       console.error('Login error:', error);
-      
+
       if (error.response?.status === 401) {
-        setError('root', { 
-          type: 'manual', 
-          message: 'Email ou mot de passe incorrect' 
+        setError('root', {
+          type: 'manual',
+          message: 'Email ou mot de passe incorrect'
         });
       } else {
-        setError('root', { 
-          type: 'manual', 
-          message: 'Erreur de connexion. Veuillez réessayer.' 
+        setError('root', {
+          type: 'manual',
+          message: 'Erreur de connexion. Veuillez réessayer.'
         });
       }
     } finally {

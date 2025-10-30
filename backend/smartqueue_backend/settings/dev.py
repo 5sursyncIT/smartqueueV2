@@ -7,7 +7,9 @@ from .base import *  # noqa: F401,F403
 
 DEBUG = True
 
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# EMAIL_BACKEND is configured in base.py from .env
+# Comment out the console backend override to use SMTP from .env
+# EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Override database to use absolute path for SQLite
 DATABASES = {

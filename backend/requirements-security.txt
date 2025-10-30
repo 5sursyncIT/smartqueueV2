@@ -1,0 +1,12 @@
+# Security dependencies for SmartQueue
+# Install with: pip install -r requirements-security.txt
+
+# 2FA & QR Codes
+qrcode>=7.4.2
+Pillow>=10.0.0  # Required by qrcode
+
+# Encryption
+cryptography>=41.0.0
+
+# Already installed (just for reference)
+# twilio>=9.0  # For SMS 2FA

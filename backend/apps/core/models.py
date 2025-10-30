@@ -199,6 +199,39 @@ class SystemConfig(TimeStampedModel):
         help_text="Exiger l'authentification à deux facteurs"
     )
 
+    # Configuration SMTP
+    smtp_host = models.CharField(
+        max_length=255,
+        default="localhost",
+        help_text="Serveur SMTP"
+    )
+    smtp_port = models.IntegerField(
+        default=1025,
+        help_text="Port SMTP"
+    )
+    smtp_use_tls = models.BooleanField(
+        default=False,
+        help_text="Utiliser TLS"
+    )
+    smtp_use_ssl = models.BooleanField(
+        default=False,
+        help_text="Utiliser SSL"
+    )
+    smtp_username = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Nom d'utilisateur SMTP"
+    )
+    smtp_password = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Mot de passe SMTP"
+    )
+    smtp_from_email = models.EmailField(
+        default="noreply@smartqueue.app",
+        help_text="Email d'expéditeur"
+    )
+
     class Meta:
         verbose_name = "Configuration Système"
         verbose_name_plural = "Configuration Système"

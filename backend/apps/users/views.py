@@ -162,6 +162,12 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_permissions(self):
+        """Permettre l'accès public à la création de compte."""
+        if self.action == 'create':
+            return [AllowAny()]
+        return super().get_permissions()
+
     def get_queryset(self):
         """Retourne tous les utilisateurs avec leurs memberships."""
         queryset = super().get_queryset()
@@ -221,6 +227,8 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         """Crée un nouvel utilisateur."""
+        from .email_verification import send_verification_email
+
         # Extraire le mot de passe
         password = request.data.get('password')
         if not password:
@@ -233,6 +241,10 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        # Vérification email activée par défaut
+        # TODO: Utiliser SystemConfig une fois le conflit de modèles résolu
+        require_verification = True
+
         # Créer avec le mot de passe hashé
         user = User.objects.create(
             email=serializer.validated_data['email'],
@@ -240,6 +252,7 @@ class UserViewSet(viewsets.ModelViewSet):
             last_name=serializer.validated_data['last_name'],
             phone_number=serializer.validated_data.get('phone_number', ''),
             is_active=True,
+            email_verified=not require_verification,  # Si pas de vérification requise, marquer comme vérifié
         )
         user.set_password(password)
 
@@ -251,8 +264,18 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user.save()
 
+        # Envoyer l'email de vérification si requis
+        if require_verification:
+            base_url = request.data.get('base_url', 'http://localhost:3001')
+            send_verification_email(user, base_url)
+
+        response_data = UserSerializer(user).data
+        if require_verification:
+            response_data['verification_email_sent'] = True
+            response_data['message'] = 'Utilisateur créé. Un email de vérification a été envoyé.'
+
         return Response(
-            UserSerializer(user).data,
+            response_data,
             status=status.HTTP_201_CREATED
         )
 

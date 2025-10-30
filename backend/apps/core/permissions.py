@@ -226,3 +226,64 @@ class IsSuperAdmin(BasePermission):
 
     def has_permission(self, request, view):  # type: ignore[override]
         return request.user.is_authenticated and request.user.is_superuser
+
+
+class HasQuotaForResource(BasePermission):
+    """
+    Vérifie que le tenant n'a pas atteint sa limite pour la ressource.
+
+    Cette permission s'applique uniquement à la création (POST).
+    Le ViewSet doit définir l'attribut `subscription_resource_type` avec une valeur parmi:
+    - 'queue'
+    - 'site'
+    - 'agent'
+    - 'ticket'
+
+    Exemple d'utilisation:
+        class QueueViewSet(viewsets.ModelViewSet):
+            permission_classes = [IsAuthenticated, HasQuotaForResource]
+            subscription_resource_type = 'queue'
+    """
+
+    def has_permission(self, request, view):  # type: ignore[override]
+        # Ne s'applique qu'à POST (création de ressources)
+        if request.method != "POST":
+            return True
+
+        # Vérifier que le tenant existe
+        tenant = getattr(request, "tenant", None)
+        if not tenant:
+            # Pas de tenant = pas de restriction (endpoints publics par exemple)
+            return True
+
+        # Déterminer le type de ressource depuis le ViewSet
+        resource_type = getattr(view, "subscription_resource_type", None)
+        if not resource_type:
+            # Si pas configuré, on autorise (opt-in)
+            return True
+
+        # Importer ici pour éviter les imports circulaires
+        from apps.core.subscription_enforcement import SubscriptionEnforcement
+
+        # Vérifier le quota selon le type de ressource
+        can_create = False
+
+        if resource_type == "queue":
+            can_create = SubscriptionEnforcement.can_create_queue(tenant)
+        elif resource_type == "site":
+            can_create = SubscriptionEnforcement.can_create_site(tenant)
+        elif resource_type == "agent":
+            can_create = SubscriptionEnforcement.can_create_agent(tenant)
+        elif resource_type == "ticket":
+            can_create = SubscriptionEnforcement.can_create_ticket(tenant)
+        else:
+            # Type inconnu, on autorise par défaut
+            return True
+
+        # Si la limite est atteinte, définir un message d'erreur personnalisé
+        if not can_create:
+            self.message = SubscriptionEnforcement.get_quota_error_message(
+                resource_type, tenant
+            )
+
+        return can_create

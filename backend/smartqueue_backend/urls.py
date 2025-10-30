@@ -16,4 +16,6 @@ urlpatterns = [
     ),
     path("api/v1/", include("apps.core.urls")),
     path("api/v1/contact/", include("apps.contact.urls")),
+    path("api/v1/security/", include("apps.security.urls")),
+    path("api/v1/auth/oauth/", include("apps.users.oauth_urls")),
 ]

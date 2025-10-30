@@ -720,6 +720,85 @@ class InvoiceAdminViewSet(viewsets.ModelViewSet):
     )
     serializer_class = InvoiceAdminSerializer
     permission_classes = [IsSuperAdmin]
+    filterset_fields = ["status", "tenant", "currency"]
+
+    def get_queryset(self):
+        """Filter invoices by status, date range, and tenant."""
+        queryset = super().get_queryset()
+
+        # Filter by status type (past, upcoming, pending)
+        status_type = self.request.query_params.get("status_type")
+        if status_type == "past":
+            # Paid or void invoices
+            queryset = queryset.filter(status__in=[Invoice.STATUS_PAID, Invoice.STATUS_VOID])
+        elif status_type == "upcoming":
+            # Draft invoices or future invoices
+            from django.utils import timezone
+            today = timezone.now().date()
+            queryset = queryset.filter(
+                status=Invoice.STATUS_DRAFT
+            ) | queryset.filter(
+                invoice_date__gt=today
+            )
+        elif status_type == "pending":
+            # Open or uncollectible invoices
+            queryset = queryset.filter(
+                status__in=[Invoice.STATUS_OPEN, Invoice.STATUS_UNCOLLECTIBLE]
+            )
+
+        # Filter by date range
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
+        if start_date:
+            queryset = queryset.filter(invoice_date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(invoice_date__lte=end_date)
+
+        return queryset
+
+    @action(detail=False, methods=["get"])
+    def stats(self, request):
+        """Statistiques sur les factures."""
+        from django.db.models import Sum, Count, Q
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        queryset = self.get_queryset()
+
+        # Total counts by status
+        total_invoices = queryset.count()
+        paid_invoices = queryset.filter(status=Invoice.STATUS_PAID).count()
+        pending_invoices = queryset.filter(status=Invoice.STATUS_OPEN).count()
+        overdue_invoices = queryset.filter(
+            status=Invoice.STATUS_OPEN,
+            due_date__lt=today
+        ).count()
+
+        # Revenue calculations
+        total_revenue = queryset.filter(status=Invoice.STATUS_PAID).aggregate(
+            total=Sum("total")
+        )["total"] or 0
+
+        pending_amount = queryset.filter(status=Invoice.STATUS_OPEN).aggregate(
+            total=Sum("total")
+        )["total"] or 0
+
+        overdue_amount = queryset.filter(
+            status=Invoice.STATUS_OPEN,
+            due_date__lt=today
+        ).aggregate(
+            total=Sum("total")
+        )["total"] or 0
+
+        return Response({
+            "total_invoices": total_invoices,
+            "paid_invoices": paid_invoices,
+            "pending_invoices": pending_invoices,
+            "overdue_invoices": overdue_invoices,
+            "total_revenue": total_revenue,
+            "pending_amount": pending_amount,
+            "overdue_amount": overdue_amount,
+        })
 
     @action(detail=True, methods=["post"])
     def mark_paid(self, request, pk=None):
@@ -733,6 +812,112 @@ class InvoiceAdminViewSet(viewsets.ModelViewSet):
         invoice.save()
 
         return Response(InvoiceAdminSerializer(invoice).data)
+
+    @action(detail=True, methods=["post"])
+    def send_reminder(self, request, pk=None):
+        """Envoie un rappel par email pour une facture impayée."""
+        from apps.tenants.dunning_services import send_dunning_email
+
+        invoice = self.get_object()
+
+        # Calculer les jours de retard
+        days_overdue = 0
+        if invoice.due_date:
+            from django.utils import timezone
+            days_overdue = max(0, (timezone.now().date() - invoice.due_date).days)
+
+        template = request.data.get("template", "default")
+
+        try:
+            action = send_dunning_email(invoice, days_overdue, template)
+            return Response({
+                "success": True,
+                "message": "Rappel envoyé avec succès",
+                "action_id": str(action.id),
+            })
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Erreur lors de l'envoi: {str(e)}",
+            }, status=400)
+
+    @action(detail=True, methods=["post"])
+    def create_payment_plan(self, request, pk=None):
+        """Crée un plan de paiement pour une facture impayée."""
+        from apps.tenants.dunning_services import create_payment_plan, send_payment_plan_proposal
+
+        invoice = self.get_object()
+
+        number_of_installments = request.data.get("number_of_installments", 3)
+        frequency_days = request.data.get("frequency_days", 30)
+        notes = request.data.get("notes", "")
+        send_email = request.data.get("send_email", True)
+
+        try:
+            plan = create_payment_plan(
+                invoice=invoice,
+                number_of_installments=number_of_installments,
+                frequency_days=frequency_days,
+                notes=notes,
+            )
+
+            if send_email:
+                send_payment_plan_proposal(plan)
+
+            # Retourner le plan avec ses échéances
+            from apps.tenants.admin_serializers import PaymentPlanSerializer
+            return Response(PaymentPlanSerializer(plan).data)
+
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Erreur: {str(e)}",
+            }, status=400)
+
+    @action(detail=True, methods=["post"])
+    def suspend_tenant(self, request, pk=None):
+        """Suspend le service d'un tenant pour non-paiement."""
+        from apps.tenants.dunning_services import suspend_tenant_service
+
+        invoice = self.get_object()
+        reason = request.data.get("reason", "Factures impayées")
+
+        try:
+            suspend_tenant_service(invoice.tenant, reason)
+            return Response({
+                "success": True,
+                "message": f"Service suspendu pour {invoice.tenant.name}",
+            })
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Erreur: {str(e)}",
+            }, status=400)
+
+    @action(detail=True, methods=["get"])
+    def download_pdf(self, request, pk=None):
+        """Génère et télécharge le PDF de la facture."""
+        from django.http import HttpResponse
+        from apps.tenants.pdf_generator import InvoicePDFGenerator
+
+        invoice = self.get_object()
+
+        try:
+            # Générer le PDF
+            generator = InvoicePDFGenerator(invoice)
+            pdf_bytes = generator.generate()
+
+            # Créer la réponse HTTP
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{invoice.invoice_number}.pdf"'
+
+            return response
+
+        except Exception as e:
+            return Response({
+                "success": False,
+                "message": f"Erreur lors de la génération du PDF: {str(e)}",
+            }, status=400)
 
 
 class TenantMembershipAdminViewSet(viewsets.ReadOnlyModelViewSet):
@@ -748,10 +933,16 @@ class TenantMembershipAdminViewSet(viewsets.ReadOnlyModelViewSet):
 class SubscriptionPlanViewSet(viewsets.ModelViewSet):
     """ViewSet pour la gestion des plans d'abonnement (super-admin)."""
 
-    queryset = SubscriptionPlan.objects.all().order_by("price_monthly")
     serializer_class = SubscriptionPlanSerializer
     permission_classes = [IsSuperAdmin]
     lookup_field = "slug"
+
+    def get_queryset(self):
+        """Annotate queryset with organizations count."""
+        from django.db.models import Count
+        return SubscriptionPlan.objects.annotate(
+            organizations_count=Count('subscriptions', distinct=True)
+        ).order_by("monthly_price")
 
     @action(detail=False, methods=["get"])
     def stats(self, request):
@@ -763,9 +954,9 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
         total_monthly_revenue = 0
 
         for plan in plans:
-            active_subs = Subscription.objects.filter(plan=plan.slug, status="active")
+            active_subs = Subscription.objects.filter(plan=plan, status="active")
             active_count = active_subs.count()
-            trial_count = Subscription.objects.filter(plan=plan.slug, status="trial").count()
+            trial_count = Subscription.objects.filter(plan=plan, status="trial").count()
 
             # Calculer le revenu mensuel récurrent (MRR)
             mrr = sum(
@@ -785,8 +976,8 @@ class SubscriptionPlanViewSet(viewsets.ModelViewSet):
                     "trial_subscriptions": trial_count,
                     "total_subscriptions": active_count + trial_count,
                     "monthly_revenue": mrr,
-                    "price_monthly": float(plan.price_monthly),
-                    "price_yearly": float(plan.price_yearly),
+                    "price_monthly": float(plan.monthly_price),
+                    "price_yearly": float(plan.yearly_price),
                 }
             )
 

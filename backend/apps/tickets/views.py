@@ -46,10 +46,17 @@ class TicketFilter(filters.FilterSet):
 
 class TicketViewSet(viewsets.ModelViewSet):
     serializer_class = TicketSerializer
-    permission_classes = [IsAuthenticated]
     filterset_class = TicketFilter
     ordering_fields = ("created_at", "priority", "called_at")
     search_fields = ("number", "customer_name", "customer_phone")
+    subscription_resource_type = "ticket"  # Pour vérification de quota
+
+    def get_permissions(self):  # type: ignore[override]
+        from apps.core.permissions import HasQuotaForResource
+
+        if self.action == "create":
+            return [IsAuthenticated(), HasQuotaForResource()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):  # type: ignore[override]
         return Ticket.objects.filter(tenant=self.request.tenant).select_related(
@@ -61,6 +68,17 @@ class TicketViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):  # type: ignore[override]
+        # Double vérification de sécurité
+        from apps.core.subscription_enforcement import SubscriptionEnforcement
+        from rest_framework.exceptions import PermissionDenied
+
+        if not SubscriptionEnforcement.can_create_ticket(self.request.tenant):
+            raise PermissionDenied(
+                SubscriptionEnforcement.get_quota_error_message(
+                    "ticket", self.request.tenant
+                )
+            )
+
         ticket = serializer.save(tenant=self.request.tenant)
         calculate_eta.delay(str(ticket.id))
         self._broadcast_ticket_event(ticket, event_type="ticket.created")

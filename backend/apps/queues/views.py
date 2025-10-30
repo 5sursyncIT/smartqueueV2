@@ -25,12 +25,30 @@ from .services import QueueService
 
 class SiteViewSet(viewsets.ModelViewSet):
     serializer_class = SiteSerializer
-    permission_classes = [IsAuthenticated, IsTenantAdmin]
+    subscription_resource_type = "site"  # Pour vérification de quota
+
+    def get_permissions(self):  # type: ignore[override]
+        from apps.core.permissions import HasQuotaForResource
+
+        if self.action == "create":
+            return [IsAuthenticated(), IsTenantAdmin(), HasQuotaForResource()]
+        return [IsAuthenticated(), IsTenantAdmin()]
 
     def get_queryset(self):  # type: ignore[override]
         return Site.objects.filter(tenant=self.request.tenant)
 
     def perform_create(self, serializer):  # type: ignore[override]
+        # Double vérification de sécurité
+        from apps.core.subscription_enforcement import SubscriptionEnforcement
+        from rest_framework.exceptions import PermissionDenied
+
+        if not SubscriptionEnforcement.can_create_site(self.request.tenant):
+            raise PermissionDenied(
+                SubscriptionEnforcement.get_quota_error_message(
+                    "site", self.request.tenant
+                )
+            )
+
         serializer.save(tenant=self.request.tenant)
 
 
@@ -56,12 +74,28 @@ class QueueViewSet(viewsets.ModelViewSet):
             waiting_count=Count("tickets", filter=Q(tickets__status=Ticket.STATUS_WAITING))
         )
 
+    # Indiquer le type de ressource pour la vérification de quota
+    subscription_resource_type = "queue"
+
     def get_permissions(self):  # type: ignore[override]
+        from apps.core.permissions import HasQuotaForResource
+
         if self.action in {"create", "update", "partial_update", "destroy"}:
-            return [IsAuthenticated(), IsTenantAdmin()]
+            return [IsAuthenticated(), IsTenantAdmin(), HasQuotaForResource()]
         return super().get_permissions()
 
     def perform_create(self, serializer):  # type: ignore[override]
+        # Double vérification de sécurité (defense in depth)
+        from apps.core.subscription_enforcement import SubscriptionEnforcement
+        from rest_framework.exceptions import PermissionDenied
+
+        if not SubscriptionEnforcement.can_create_queue(self.request.tenant):
+            raise PermissionDenied(
+                SubscriptionEnforcement.get_quota_error_message(
+                    "queue", self.request.tenant
+                )
+            )
+
         serializer.save(tenant=self.request.tenant)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])

@@ -18,8 +18,8 @@ class Command(BaseCommand):
                 "name": "Essential",
                 "slug": "essential",
                 "description": "Idéal pour les petites structures qui débutent avec la gestion de files d'attente",
-                "price_monthly": Decimal("15000.00"),  # 15 000 XOF
-                "price_yearly": Decimal("150000.00"),  # 150 000 XOF (2 mois gratuits)
+                "monthly_price": Decimal("15000.00"),  # 15 000 XOF
+                "yearly_price": Decimal("150000.00"),  # 150 000 XOF (2 mois gratuits)
                 "currency": "XOF",
                 "features": [
                     "1 site",
@@ -40,8 +40,8 @@ class Command(BaseCommand):
                 "name": "Professional",
                 "slug": "professional",
                 "description": "Pour les entreprises en croissance nécessitant plus de flexibilité",
-                "price_monthly": Decimal("45000.00"),  # 45 000 XOF
-                "price_yearly": Decimal("450000.00"),  # 450 000 XOF (2 mois gratuits)
+                "monthly_price": Decimal("45000.00"),  # 45 000 XOF
+                "yearly_price": Decimal("450000.00"),  # 450 000 XOF (2 mois gratuits)
                 "currency": "XOF",
                 "features": [
                     "3 sites",
@@ -64,8 +64,8 @@ class Command(BaseCommand):
                 "name": "Enterprise",
                 "slug": "enterprise",
                 "description": "Solution complète pour les grandes organisations avec besoins sur mesure",
-                "price_monthly": Decimal("120000.00"),  # 120 000 XOF
-                "price_yearly": Decimal("1200000.00"),  # 1 200 000 XOF (2 mois gratuits)
+                "monthly_price": Decimal("120000.00"),  # 120 000 XOF
+                "yearly_price": Decimal("1200000.00"),  # 1 200 000 XOF (2 mois gratuits)
                 "currency": "XOF",
                 "features": [
                     "Sites illimités",
@@ -100,12 +100,12 @@ class Command(BaseCommand):
             if created:
                 created_count += 1
                 self.stdout.write(
-                    self.style.SUCCESS(f"✓ Plan créé: {plan.name} - {plan.price_monthly} XOF/mois")
+                    self.style.SUCCESS(f"✓ Plan créé: {plan.name} - {plan.monthly_price} XOF/mois")
                 )
             else:
                 updated_count += 1
                 self.stdout.write(
-                    self.style.WARNING(f"↻ Plan mis à jour: {plan.name} - {plan.price_monthly} XOF/mois")
+                    self.style.WARNING(f"↻ Plan mis à jour: {plan.name} - {plan.monthly_price} XOF/mois")
                 )
 
         self.stdout.write("")

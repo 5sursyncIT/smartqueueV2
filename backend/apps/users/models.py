@@ -51,6 +51,25 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     is_staff = models.BooleanField(default=False)
     last_login = models.DateTimeField(null=True, blank=True)
 
+    # Email verification fields
+    email_verified = models.BooleanField(default=False, help_text="Email vérifié")
+    email_verification_token = models.CharField(max_length=255, null=True, blank=True, help_text="Token de vérification email")
+    email_verification_sent_at = models.DateTimeField(null=True, blank=True, help_text="Date envoi email vérification")
+    email_verified_at = models.DateTimeField(null=True, blank=True, help_text="Date vérification email")
+
+    # 2FA fields
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_method = models.CharField(max_length=10, choices=[('totp', 'TOTP'), ('sms', 'SMS')], null=True, blank=True)
+    totp_secret = models.CharField(max_length=255, null=True, blank=True)
+    backup_codes = models.JSONField(default=list, blank=True)
+    two_factor_phone = models.CharField(max_length=32, null=True, blank=True)
+
+    # Security fields
+    failed_login_attempts = models.IntegerField(default=0)
+    account_locked_until = models.DateTimeField(null=True, blank=True)
+    password_changed_at = models.DateTimeField(null=True, blank=True)
+    require_password_change = models.BooleanField(default=False)
+
     objects = UserManager()
 
     USERNAME_FIELD = "email"

@@ -81,13 +81,11 @@ def check_overdue_invoices():
 
             elif days_overdue >= 30 and tenant.is_active:
                 # Suspension automatique du service
+                from apps.tenants.dunning_services import suspend_tenant_service
+
                 with transaction.atomic():
-                    tenant.is_active = False
-                    tenant.suspended_at = timezone.now()
-                    tenant.suspension_reason = (
-                        f"Facture {invoice.invoice_number} impayée depuis {days_overdue} jours"
-                    )
-                    tenant.save()
+                    reason = f"Facture {invoice.invoice_number} impayée depuis {days_overdue} jours"
+                    suspend_tenant_service(tenant, reason)
 
                     send_suspension_email(tenant, invoice, days_overdue)
                     stats['suspended_day_30'] += 1
@@ -105,39 +103,23 @@ def send_reminder_email(tenant, invoice, reminder_type, days_overdue):
     """
     Envoie un email de rappel selon le type.
     """
-    subject_map = {
-        'day_3': f"Rappel: Facture {invoice.invoice_number} à régler",
-        'day_7': f"Urgent: Facture {invoice.invoice_number} en retard de {days_overdue} jours",
-        'day_15': f"⚠️ IMPORTANT: Risque de suspension - Facture {invoice.invoice_number}",
-    }
+    from apps.tenants.dunning_services import send_dunning_email
 
     template_map = {
-        'day_3': 'invoice_reminder_friendly',
-        'day_7': 'invoice_reminder_urgent',
-        'day_15': 'invoice_warning_suspension',
+        'day_3': 'first_reminder',
+        'day_7': 'second_reminder',
+        'day_15': 'final_notice',
     }
 
-    context = {
-        'tenant_name': tenant.name,
-        'invoice_number': invoice.invoice_number,
-        'amount': invoice.total / 100,  # Convertir en unités
-        'currency': invoice.currency,
-        'due_date': invoice.due_date.strftime('%d/%m/%Y'),
-        'days_overdue': days_overdue,
-        'payment_link': f"https://app.smartqueue.com/portal/billing/{invoice.id}",
-    }
+    template = template_map.get(reminder_type, 'default')
 
-    # Pour le moment, log l'email (à remplacer par vraie intégration SendGrid)
-    logger.info(f"[EMAIL] {subject_map[reminder_type]} -> {tenant.email}")
-    logger.info(f"[EMAIL] Contexte: {context}")
-
-    # TODO: Intégrer avec SendGrid
-    # send_email_notification.delay(
-    #     to_email=tenant.email,
-    #     subject=subject_map[reminder_type],
-    #     template=template_map[reminder_type],
-    #     context=context
-    # )
+    try:
+        # Utiliser le service de dunning pour envoyer l'email
+        action = send_dunning_email(invoice, days_overdue, template)
+        logger.info(f"[EMAIL] Rappel envoyé via dunning service: {action.email_subject} -> {tenant.email}")
+    except Exception as e:
+        logger.error(f"[EMAIL] Erreur lors de l'envoi du rappel: {str(e)}")
+        raise
 
 
 def send_suspension_email(tenant, invoice, days_overdue):
@@ -390,4 +372,42 @@ def cleanup_expired_trials():
             continue
 
     logger.info(f"[CLEANUP] Résumé: {stats}")
+    return stats
+
+
+@shared_task
+def update_payment_plan_installments():
+    """
+    Met à jour le statut des échéances de plan de paiement.
+    Exécution: Tous les jours à 4h00
+    """
+    from apps.tenants.models import PaymentPlanInstallment
+
+    today = timezone.now().date()
+    logger.info(f"[PAYMENT_PLANS] Mise à jour des échéances pour le {today}")
+
+    # Échéances en attente dont la date est passée
+    overdue_installments = PaymentPlanInstallment.objects.filter(
+        status=PaymentPlanInstallment.STATUS_PENDING,
+        due_date__lt=today
+    ).select_related('payment_plan__tenant')
+
+    stats = {'updated_to_overdue': 0}
+
+    for installment in overdue_installments:
+        try:
+            installment.status = PaymentPlanInstallment.STATUS_OVERDUE
+            installment.save()
+            stats['updated_to_overdue'] += 1
+
+            logger.warning(
+                f"[PAYMENT_PLANS] Échéance {installment.installment_number} "
+                f"du plan {installment.payment_plan.id} marquée en retard"
+            )
+
+        except Exception as e:
+            logger.error(f"[PAYMENT_PLANS] Erreur mise à jour échéance {installment.id}: {str(e)}")
+            continue
+
+    logger.info(f"[PAYMENT_PLANS] Résumé: {stats}")
     return stats

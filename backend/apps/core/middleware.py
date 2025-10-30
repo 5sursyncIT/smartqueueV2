@@ -90,3 +90,102 @@ class TenantMiddleware:
         if idx + 1 < len(segments):
             return segments[idx + 1]
         return None
+
+
+class SubscriptionStatusMiddleware:
+    """
+    Vérifie l'état de la souscription avant chaque requête tenant-scoped.
+
+    Ce middleware bloque l'accès si:
+    - Le tenant est suspendu (is_active = False)
+    - La souscription est annulée
+    - La souscription est suspendue (non-paiement)
+    - Le trial est expiré
+
+    NOTE: Ce middleware doit être placé APRÈS TenantMiddleware dans MIDDLEWARE.
+    """
+
+    EXEMPT_PATHS = (
+        "/api/v1/auth/",
+        "/api/v1/health/",
+        "/api/v1/public/",
+        "/api/v1/admin/",
+        "/admin/",
+        "/api/schema/",
+        "/api/docs/",
+    )
+
+    def __init__(self, get_response):  # type: ignore[no-untyped-def]
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        # Ne s'applique qu'aux requêtes avec tenant
+        tenant = getattr(request, "tenant", None)
+
+        if tenant and not self._is_exempt_path(request.path):
+            # Vérifier si le tenant est actif
+            if not tenant.is_active:
+                from django.http import JsonResponse
+
+                return JsonResponse(
+                    {
+                        "error": "Compte suspendu",
+                        "detail": tenant.suspension_reason
+                        or "Votre compte a été suspendu. Veuillez contacter le support.",
+                        "code": "tenant_suspended",
+                    },
+                    status=403,
+                )
+
+            # Vérifier l'état de la souscription
+            if hasattr(tenant, "subscription"):
+                sub = tenant.subscription
+
+                # Souscription annulée
+                if sub.status == "cancelled":
+                    from django.http import JsonResponse
+
+                    return JsonResponse(
+                        {
+                            "error": "Souscription annulée",
+                            "detail": "Votre souscription a été annulée. Veuillez vous réabonner.",
+                            "code": "subscription_cancelled",
+                        },
+                        status=403,
+                    )
+
+                # Souscription suspendue (non-paiement)
+                if sub.status == "suspended":
+                    from django.http import JsonResponse
+
+                    return JsonResponse(
+                        {
+                            "error": "Paiement requis",
+                            "detail": "Votre souscription est suspendue. Veuillez mettre à jour votre paiement.",
+                            "code": "subscription_suspended",
+                        },
+                        status=403,
+                    )
+
+                # Trial expiré
+                if sub.status == "trial" and hasattr(sub, "trial_ends_at") and sub.trial_ends_at:
+                    from django.utils import timezone
+
+                    if timezone.now().date() > sub.trial_ends_at:
+                        from django.http import JsonResponse
+
+                        return JsonResponse(
+                            {
+                                "error": "Période d'essai expirée",
+                                "detail": "Votre période d'essai est terminée. Veuillez choisir un plan.",
+                                "code": "trial_expired",
+                            },
+                            status=403,
+                        )
+
+        response = self.get_response(request)
+        return response
+
+    def _is_exempt_path(self, path: str) -> bool:
+        """Vérifie si le path est exempté de vérification."""
+        return any(path.startswith(prefix) for prefix in self.EXEMPT_PATHS)

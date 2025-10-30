@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     # Apps SmartQueue
     "apps.core",
+    "apps.security",  # App de sécurité
     "apps.tenants",
     "apps.users",
     "apps.customers",
@@ -84,7 +85,16 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Security middlewares (must be before TenantMiddleware)
+    "apps.security.middleware.IPBlockingMiddleware",
+    "apps.security.middleware.RateLimitMiddleware",
+    "apps.security.middleware.AttackDetectionMiddleware",
+    "apps.security.middleware.SecurityHeadersMiddleware",
+    "apps.security.middleware.LoginAttemptMiddleware",
+    # Tenant middleware
     "apps.core.middleware.TenantMiddleware",
+    # Subscription enforcement middleware (MUST be after TenantMiddleware)
+    "apps.core.middleware.SubscriptionStatusMiddleware",
 ]
 
 ROOT_URLCONF = "smartqueue_backend.urls"
@@ -186,9 +196,69 @@ TWILIO_WHATSAPP_NUMBER = env("TWILIO_WHATSAPP_NUMBER")
 SENDGRID_API_KEY = env("SENDGRID_API_KEY")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 
+# Email Configuration (SMTP Local ou SendGrid)
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="localhost")
+EMAIL_PORT = env.int("EMAIL_PORT", default=1025)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=False)
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+
 # Firebase Configuration
 FIREBASE_CREDENTIALS_PATH = env("FIREBASE_CREDENTIALS_PATH")
 FCM_SERVER_KEY = env("FCM_SERVER_KEY")
+
+# OAuth Configuration
+# Google OAuth
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
+GOOGLE_OAUTH_REDIRECT_URI = env("GOOGLE_OAUTH_REDIRECT_URI", default="http://localhost:3000/auth/google/callback")
+
+# Microsoft OAuth (Azure AD)
+MICROSOFT_OAUTH_CLIENT_ID = env("MICROSOFT_OAUTH_CLIENT_ID", default="")
+MICROSOFT_OAUTH_CLIENT_SECRET = env("MICROSOFT_OAUTH_CLIENT_SECRET", default="")
+MICROSOFT_OAUTH_TENANT_ID = env("MICROSOFT_OAUTH_TENANT_ID", default="common")
+MICROSOFT_OAUTH_REDIRECT_URI = env("MICROSOFT_OAUTH_REDIRECT_URI", default="http://localhost:3000/auth/microsoft/callback")
+
+# Password Validation
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {
+            "min_length": 8,
+        },
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+    },
+]
+
+# Security Settings
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_HSTS_SECONDS = 31536000  # 1 year
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)  # True in production
+
+# Session Security
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)  # True in production
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)  # True in production
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = "Lax"
+
+# Session timeout (60 minutes)
+SESSION_COOKIE_AGE = 3600
 
 LANGUAGE_CODE = "fr-fr"
 TIME_ZONE = "UTC"
@@ -246,6 +316,12 @@ CELERY_BEAT_SCHEDULE: dict[str, dict] = {
     'cleanup-expired-trials': {
         'task': 'apps.tenants.tasks.cleanup_expired_trials',
         'schedule': crontab(hour=3, minute=0),
+        'options': {'expires': 3600},
+    },
+    # Mise à jour des échéances de plans de paiement à 4h00
+    'update-payment-plan-installments': {
+        'task': 'apps.tenants.tasks.update_payment_plan_installments',
+        'schedule': crontab(hour=4, minute=0),
         'options': {'expires': 3600},
     },
 
@@ -306,3 +382,15 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["localhost", "127.0.0.1", "0.0.0.0"])
 
 TENANT_HEADER = "HTTP_X_TENANT"
+
+# Paths exempted from tenant resolution (global/super-admin endpoints)
+TENANT_EXEMPT_PATH_PREFIXES = (
+    "/api/v1/health",
+    "/api/v1/auth",
+    "/api/v1/admin",
+    "/api/v1/security",  # Security endpoints are global/super-admin only
+    "/api/v1/public/tenants/",
+    "/api/schema",
+    "/api/docs",
+    "/admin/login",
+)

@@ -39,6 +39,16 @@ class TenantViewSet(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets
         serializer = self.get_serializer(self.request.tenant)  # type: ignore[arg-type]
         return Response(serializer.data)
 
+    @action(detail=False, methods=["get"], url_path="current/usage", permission_classes=[IsAuthenticated, IsTenantAdmin])
+    def usage(self, request) -> Response:
+        """Retourne les statistiques d'utilisation vs quotas du tenant."""
+        from apps.core.subscription_enforcement import SubscriptionEnforcement
+
+        tenant = request.tenant
+        usage_stats = SubscriptionEnforcement.get_usage_stats(tenant)
+
+        return Response(usage_stats)
+
 
 class TenantMembershipViewSet(
     mixins.ListModelMixin,
@@ -51,6 +61,15 @@ class TenantMembershipViewSet(
 
     serializer_class = TenantMembershipSerializer
     permission_classes = [IsAuthenticated, IsTenantAdmin]
+    subscription_resource_type = "agent"  # Pour HasQuotaForResource
+
+    def get_permissions(self):  # type: ignore[override]
+        """Ajoute HasQuotaForResource pour la création d'agents."""
+        from apps.core.permissions import HasQuotaForResource
+
+        if self.action == "create":
+            return [IsAuthenticated(), IsTenantAdmin(), HasQuotaForResource()]
+        return super().get_permissions()
 
     def get_queryset(self):  # type: ignore[override]
         return TenantMembership.objects.filter(
@@ -65,6 +84,16 @@ class TenantMembershipViewSet(
 
     def create(self, request, *args, **kwargs):
         """Invite un utilisateur à rejoindre le tenant."""
+        # Double vérification du quota (defense in depth)
+        from apps.core.subscription_enforcement import SubscriptionEnforcement
+        from rest_framework.exceptions import PermissionDenied
+
+        # Vérifier le quota AVANT de créer l'utilisateur ou le membership
+        if not SubscriptionEnforcement.can_create_agent(request.tenant):
+            raise PermissionDenied(
+                SubscriptionEnforcement.get_quota_error_message("agent", request.tenant)
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

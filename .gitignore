@@ -19,5 +19,18 @@ node_modules/
 .idea/
 .vscode/
 .DS_Store
-*.md
+
+# Databases
 *.db
+
+# Markdown - ignore non-essential by default, allow docs and READMEs
+*.md
+!README.md
+!**/README.md
+!CHANGELOG.md
+!**/CHANGELOG.md
+!docs/*.md
+!docs/**/*.md
+
+# Internal AI notes (ignored)
+CLAUDE.md
