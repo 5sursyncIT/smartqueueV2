@@ -16,9 +16,9 @@ export const metadata: Metadata = {
   title: "SmartQueue - Solution de Gestion de Files d'Attente Intelligente | Sénégal",
   description: "Solution SaaS innovante de gestion de files d'attente pour entreprises sénégalaises. Réduisez les temps d'attente de 65% avec notre plateforme made in Africa.",
   keywords: "files d'attente, gestion de clients, SaaS, Sénégal, Dakar, entreprise, solution digitale, Africa",
-  authors: [{ name: "SmartQueue Team", url: "https://smartqueue.sn" }],
-  creator: "SmartQueue",
-  publisher: "SmartQueue",
+  authors: [{ name: "5/Sync IT", url: "https://5sursync.com" }],
+  creator: "5/Sync IT",
+  publisher: "5/Sync IT", 
   formatDetection: {
     email: false,
     address: false,

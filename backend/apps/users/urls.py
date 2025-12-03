@@ -16,6 +16,7 @@ from .jwt_views import (
     JWTMeView,
     TokenBlacklistView,
 )
+from .tenant_creation_views import CreateTenantAfterVerificationView
 from .views import AgentStatusViewSet, AuthViewSet, UserViewSet
 
 router = DefaultRouter()
@@ -36,4 +37,6 @@ urlpatterns = [
     path("verify-email/", VerifyEmailView.as_view(), name="verify-email"),
     path("resend-verification/", ResendVerificationEmailView.as_view(), name="resend-verification"),
     path("check-verification/", CheckEmailVerificationView.as_view(), name="check-verification"),
+    # Tenant creation after verification
+    path("create-tenant/", CreateTenantAfterVerificationView.as_view(), name="create-tenant"),
 ]

@@ -80,14 +80,20 @@ function VerifyEmailContent() {
 
     try {
       setErrorMessage('');
-      const response = await verifyEmail(email, code);
 
-      if (response.success) {
+      // 1. Vérifier l'email
+      const verifyResponse = await verifyEmail(email, code);
+
+      if (verifyResponse.success) {
+        // 2. Se connecter automatiquement pour obtenir un token
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+        // On ne peut pas se connecter sans le mot de passe
+        // Donc on redirige directement vers la connexion avec un message
         setIsVerified(true);
 
-        // Rediriger vers la page de connexion après 2 secondes
         setTimeout(() => {
-          router.push('/auth/login?message=Email vérifié avec succès');
+          router.push('/auth/login?message=Email vérifié avec succès. Connectez-vous pour créer votre organisation');
         }, 2000);
       }
     } catch (err: any) {

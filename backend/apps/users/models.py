@@ -57,6 +57,9 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     email_verification_sent_at = models.DateTimeField(null=True, blank=True, help_text="Date envoi email vérification")
     email_verified_at = models.DateTimeField(null=True, blank=True, help_text="Date vérification email")
 
+    # Tenant creation pending data
+    pending_company_name = models.CharField(max_length=255, null=True, blank=True, help_text="Nom d'entreprise en attente de création du tenant")
+
     # 2FA fields
     two_factor_enabled = models.BooleanField(default=False)
     two_factor_method = models.CharField(max_length=10, choices=[('totp', 'TOTP'), ('sms', 'SMS')], null=True, blank=True)

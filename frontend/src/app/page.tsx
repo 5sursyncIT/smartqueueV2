@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { contactApi } from "@/lib/api/contact";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function Home() {
   const [formData, setFormData] = useState({
@@ -125,6 +126,7 @@ export default function Home() {
               </a>
             </div>
             <div className="flex items-center space-x-3">
+              <ThemeToggle />
               <Link href="/auth/login">
                 <Button variant="outline" size="sm" className="text-foreground border-foreground/20 hover:bg-foreground/10">
                   Connexion
@@ -816,7 +818,7 @@ export default function Home() {
           </div>
           
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2024 SmartQueue. Tous droits réservés.</p>
+            <p>&copy; 2025 5/Sync IT. Tous droits réservés.</p>
           </div>
         </div>
       </footer>

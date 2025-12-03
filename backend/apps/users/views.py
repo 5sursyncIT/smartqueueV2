@@ -251,6 +251,7 @@ class UserViewSet(viewsets.ModelViewSet):
             first_name=serializer.validated_data['first_name'],
             last_name=serializer.validated_data['last_name'],
             phone_number=serializer.validated_data.get('phone_number', ''),
+            pending_company_name=request.data.get('company_name', ''),
             is_active=True,
             email_verified=not require_verification,  # Si pas de vérification requise, marquer comme vérifié
         )
