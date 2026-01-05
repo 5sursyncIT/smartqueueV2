@@ -1,0 +1,591 @@
+'use client';
+
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Shield,
+  AlertTriangle,
+  Lock,
+  Eye,
+  Activity,
+  Search,
+  Filter,
+  Download,
+  CheckCircle,
+  XCircle,
+  Clock,
+  User,
+  Globe,
+  Key,
+  FileText,
+} from 'lucide-react';
+
+// Types
+interface SecurityEvent {
+  id: string;
+  type: 'login_failed' | 'login_success' | 'password_change' | 'permission_change' | 'data_export' | 'suspicious_activity';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  user_email: string;
+  ip_address: string;
+  user_agent: string;
+  organization: string;
+  timestamp: string;
+  details: string;
+  status: 'resolved' | 'investigating' | 'open';
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  user: string;
+  resource: string;
+  organization: string;
+  timestamp: string;
+  changes: string;
+  ip_address: string;
+}
+
+interface ThreatSummary {
+  blocked_ips: number;
+  failed_logins_today: number;
+  suspicious_activities: number;
+  open_incidents: number;
+}
+
+// Données de démo
+const DEMO_THREATS: ThreatSummary = {
+  blocked_ips: 23,
+  failed_logins_today: 145,
+  suspicious_activities: 8,
+  open_incidents: 2,
+};
+
+const DEMO_SECURITY_EVENTS: SecurityEvent[] = [
+  {
+    id: '1',
+    type: 'login_failed',
+    severity: 'high',
+    user_email: 'admin@demo-bank.com',
+    ip_address: '197.234.123.45',
+    user_agent: 'Mozilla/5.0 (Windows NT 10.0)',
+    organization: 'Demo Bank',
+    timestamp: '2025-01-15T14:30:00Z',
+    details: '5 tentatives échouées en 2 minutes',
+    status: 'investigating',
+  },
+  {
+    id: '2',
+    type: 'suspicious_activity',
+    severity: 'critical',
+    user_email: 'unknown@malicious.com',
+    ip_address: '185.220.101.45',
+    user_agent: 'curl/7.68.0',
+    organization: '-',
+    timestamp: '2025-01-15T13:15:00Z',
+    details: 'Tentative d\'injection SQL détectée',
+    status: 'resolved',
+  },
+  {
+    id: '3',
+    type: 'data_export',
+    severity: 'medium',
+    user_email: 'admin@mairie-dakar.sn',
+    ip_address: '196.1.95.234',
+    user_agent: 'Mozilla/5.0 (Macintosh)',
+    organization: 'Mairie de Dakar',
+    timestamp: '2025-01-15T11:00:00Z',
+    details: 'Export de 10,000 tickets',
+    status: 'open',
+  },
+  {
+    id: '4',
+    type: 'permission_change',
+    severity: 'medium',
+    user_email: 'admin@clinique.sn',
+    ip_address: '41.82.123.67',
+    user_agent: 'Mozilla/5.0 (Windows NT)',
+    organization: 'Clinique du Plateau',
+    timestamp: '2025-01-15T09:45:00Z',
+    details: 'Promotion d\'un agent en manager',
+    status: 'resolved',
+  },
+  {
+    id: '5',
+    type: 'login_success',
+    severity: 'low',
+    user_email: 'superadmin@smartqueue.app',
+    ip_address: '105.235.123.89',
+    user_agent: 'Mozilla/5.0 (X11; Linux)',
+    organization: '-',
+    timestamp: '2025-01-15T08:00:00Z',
+    details: 'Connexion super-admin réussie',
+    status: 'resolved',
+  },
+];
+
+const DEMO_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: '1',
+    action: 'SUBSCRIPTION_UPDATED',
+    user: 'superadmin@smartqueue.app',
+    resource: 'Subscription Plan - Demo Bank',
+    organization: 'Demo Bank',
+    timestamp: '2025-01-15T14:30:00Z',
+    changes: 'Plan: Essential → Professional',
+    ip_address: '105.235.123.89',
+  },
+  {
+    id: '2',
+    action: 'USER_DEACTIVATED',
+    user: 'admin@mairie-dakar.sn',
+    resource: 'User: agent@clinique.sn',
+    organization: 'Clinique du Plateau',
+    timestamp: '2025-01-15T13:20:00Z',
+    changes: 'is_active: true → false',
+    ip_address: '196.1.95.234',
+  },
+  {
+    id: '3',
+    action: 'PAYMENT_PROCESSED',
+    user: 'system',
+    resource: 'Invoice INV-2025-001',
+    organization: 'Demo Bank',
+    timestamp: '2025-01-15T10:30:00Z',
+    changes: 'Status: pending → paid (45,000 XOF)',
+    ip_address: '-',
+  },
+  {
+    id: '4',
+    action: 'TENANT_CREATED',
+    user: 'superadmin@smartqueue.app',
+    resource: 'Tenant: ucad',
+    organization: 'Université UCAD',
+    timestamp: '2025-01-14T16:00:00Z',
+    changes: 'New organization created',
+    ip_address: '105.235.123.89',
+  },
+];
+
+export default function SecurityPage() {
+  const [events, setEvents] = useState<SecurityEvent[]>(DEMO_SECURITY_EVENTS);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>(DEMO_AUDIT_LOGS);
+  const [threats] = useState<ThreatSummary>(DEMO_THREATS);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [severityFilter, setSeverityFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('fr-FR', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const getSeverityBadge = (severity: SecurityEvent['severity']) => {
+    const variants = {
+      low: { label: 'Faible', className: 'bg-blue-100 text-blue-800' },
+      medium: { label: 'Moyen', className: 'bg-yellow-100 text-yellow-800' },
+      high: { label: 'Élevé', className: 'bg-orange-100 text-orange-800' },
+      critical: { label: 'Critique', className: 'bg-red-100 text-red-800' },
+    };
+    const { label, className } = variants[severity];
+    return (
+      <Badge variant="secondary" className={className}>
+        {label}
+      </Badge>
+    );
+  };
+
+  const getStatusBadge = (status: SecurityEvent['status']) => {
+    const variants = {
+      open: { label: 'Ouvert', className: 'bg-yellow-100 text-yellow-800', icon: Clock },
+      investigating: { label: 'Enquête', className: 'bg-blue-100 text-blue-800', icon: Eye },
+      resolved: { label: 'Résolu', className: 'bg-green-100 text-green-800', icon: CheckCircle },
+    };
+    const { label, className, icon: Icon } = variants[status];
+    return (
+      <Badge variant="secondary" className={className}>
+        <Icon className="h-3 w-3 mr-1" />
+        {label}
+      </Badge>
+    );
+  };
+
+  const getEventTypeLabel = (type: SecurityEvent['type']) => {
+    const labels = {
+      login_failed: 'Échec connexion',
+      login_success: 'Connexion réussie',
+      password_change: 'Changement mot de passe',
+      permission_change: 'Changement permissions',
+      data_export: 'Export de données',
+      suspicious_activity: 'Activité suspecte',
+    };
+    return labels[type];
+  };
+
+  const filteredEvents = events.filter((event) => {
+    const matchesSearch =
+      event.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.ip_address.includes(searchQuery) ||
+      event.details.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesSeverity = severityFilter === 'all' || event.severity === severityFilter;
+    const matchesStatus = statusFilter === 'all' || event.status === statusFilter;
+
+    return matchesSearch && matchesSeverity && matchesStatus;
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Sécurité & Conformité</h1>
+        <p className="text-gray-600 mt-2">
+          Surveillance de la sécurité et logs d'audit
+        </p>
+      </div>
+
+      {/* Threat Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              IPs bloquées
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{threats.blocked_ips}</div>
+            <div className="text-xs text-gray-500 mt-1">30 derniers jours</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+              <XCircle className="h-4 w-4" />
+              Échecs connexion
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-orange-600">{threats.failed_logins_today}</div>
+            <div className="text-xs text-gray-500 mt-1">Aujourd'hui</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Activités suspectes
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-yellow-600">{threats.suspicious_activities}</div>
+            <div className="text-xs text-gray-500 mt-1">7 derniers jours</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Incidents ouverts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-red-600">{threats.open_incidents}</div>
+            <div className="text-xs text-gray-500 mt-1">Nécessite action</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Security Events */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5" />
+            Événements de sécurité
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4 mb-6">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher par email, IP ou détails..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Select value={severityFilter} onValueChange={setSeverityFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toute sévérité</SelectItem>
+                  <SelectItem value="low">Faible</SelectItem>
+                  <SelectItem value="medium">Moyen</SelectItem>
+                  <SelectItem value="high">Élevé</SelectItem>
+                  <SelectItem value="critical">Critique</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous statuts</SelectItem>
+                  <SelectItem value="open">Ouvert</SelectItem>
+                  <SelectItem value="investigating">Enquête</SelectItem>
+                  <SelectItem value="resolved">Résolu</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Utilisateur</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Organisation</TableHead>
+                  <TableHead>Détails</TableHead>
+                  <TableHead>Sévérité</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEvents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center text-gray-500 py-8">
+                      Aucun événement trouvé
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredEvents.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell className="font-medium">
+                        {getEventTypeLabel(event.type)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm">
+                          <User className="h-3 w-3 text-gray-400" />
+                          {event.user_email}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm">
+                          <Globe className="h-3 w-3 text-gray-400" />
+                          {event.ip_address}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {event.organization !== '-' ? event.organization : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600 max-w-xs truncate">
+                        {event.details}
+                      </TableCell>
+                      <TableCell>{getSeverityBadge(event.severity)}</TableCell>
+                      <TableCell>{getStatusBadge(event.status)}</TableCell>
+                      <TableCell className="text-sm">{formatDate(event.timestamp)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Audit Logs */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Logs d'audit
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Utilisateur</TableHead>
+                  <TableHead>Ressource</TableHead>
+                  <TableHead>Organisation</TableHead>
+                  <TableHead>Changements</TableHead>
+                  <TableHead>IP</TableHead>
+                  <TableHead>Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {auditLogs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>
+                      <Badge variant="outline">{log.action}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">{log.user}</TableCell>
+                    <TableCell className="text-sm font-medium">{log.resource}</TableCell>
+                    <TableCell className="text-sm">{log.organization}</TableCell>
+                    <TableCell className="text-sm text-gray-600">{log.changes}</TableCell>
+                    <TableCell className="text-sm text-gray-600">
+                      {log.ip_address !== '-' ? log.ip_address : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{formatDate(log.timestamp)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="flex items-center justify-between mt-4 text-sm text-gray-600">
+            <div>Affichage de {auditLogs.length} logs récents</div>
+            <Button variant="outline" size="sm">
+              Voir tous les logs
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Compliance & RGPD */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lock className="h-5 w-5" />
+              Conformité RGPD
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <div className="font-medium">Consentement</div>
+                    <div className="text-xs text-gray-600">Gestion des consentements active</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <div className="font-medium">Droit à l'oubli</div>
+                    <div className="text-xs text-gray-600">Suppression des données implémentée</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <div className="font-medium">Portabilité</div>
+                    <div className="text-xs text-gray-600">Export des données disponible</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <div>
+                    <div className="font-medium">Chiffrement</div>
+                    <div className="text-xs text-gray-600">SSL/TLS + Chiffrement DB</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              Politique de sécurité
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="font-medium">Mot de passe</div>
+                  <div className="text-xs text-gray-600">Min 8 caractères, majuscules, chiffres</div>
+                </div>
+                <Badge variant="outline">Actif</Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="font-medium">Timeout session</div>
+                  <div className="text-xs text-gray-600">60 minutes d'inactivité</div>
+                </div>
+                <Badge variant="outline">Actif</Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="font-medium">Rate limiting</div>
+                  <div className="text-xs text-gray-600">100 req/min par IP</div>
+                </div>
+                <Badge variant="outline">Actif</Badge>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <div className="font-medium">Vérification email</div>
+                  <div className="text-xs text-gray-600">Obligatoire pour nouveaux comptes</div>
+                </div>
+                <Badge variant="outline">Actif</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
