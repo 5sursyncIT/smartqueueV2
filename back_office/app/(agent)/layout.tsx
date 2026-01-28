@@ -59,7 +59,7 @@ export default function AgentLayout({
 
   const handleLogout = () => {
     logout();
-    router.push('/login');
+    window.location.href = '/backoffice/login';
   };
 
   return (

@@ -151,12 +151,16 @@ export function ModernLayout({ tickets, displayConfig, currentTime }: ModernLayo
               >
                 <div className="flex items-center px-6 py-4">
                   {/* Numéro du ticket - Style Desjardins */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0 pr-4">
+                    {/* Nom de la file */}
+                    <div className="text-gray-500 text-xl font-bold uppercase tracking-wider mb-2 truncate">
+                      {ticket.queue_name}
+                    </div>
                     <div
                       className="text-7xl font-black tabular-nums leading-none"
                       style={{ color: getTicketColor(ticket, index) }}
                     >
-                      {ticket.number}
+                      {ticket.number.split('-').pop()}
                     </div>
                   </div>
 

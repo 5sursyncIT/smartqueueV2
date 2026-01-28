@@ -33,7 +33,7 @@ class TenantMiddleware:
                 "/api/v1/public/tenants/",  # Liste publique des tenants (pas un tenant spécifique)
                 "/api/schema",
                 "/api/docs",
-                "/admin/login",
+                "/admin/",  # Django admin global
             ),
         )
     )

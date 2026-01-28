@@ -101,16 +101,16 @@ class SubscriptionPlan(TimeStampedModel):
     max_queues = models.PositiveIntegerField(default=3)
     max_tickets_per_month = models.PositiveIntegerField(default=500)
 
-    # Pricing
-    monthly_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
-    yearly_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0"))
+    # Tarification
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=2)
+    yearly_price = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default="XOF")
 
-    # Features
-    features = models.JSONField(default=list, blank=True)
+    # Features (JSON)
+    features = models.JSONField(default=list)
 
-    # Status
     is_active = models.BooleanField(default=True)
+    is_featured = models.BooleanField(default=False)
     display_order = models.PositiveIntegerField(default=0)
 
     class Meta:

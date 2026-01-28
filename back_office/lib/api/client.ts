@@ -1,14 +1,14 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import type { APIError } from '@/lib/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 console.log('API_URL:', API_URL);
-console.log('baseURL:', `${API_URL}/api/v1`);
+console.log('baseURL:', API_URL ? `${API_URL}/api/v1` : '/api/v1');
 
 // Create axios instance
 export const apiClient = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: API_URL ? `${API_URL}/api/v1` : '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -115,14 +115,15 @@ apiClient.interceptors.response.use(
         if (!refreshToken) {
           console.log('[API Client] No refresh token available, clearing tokens');
           clearTokens();
-          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login';
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/backoffice/login')) {
+            window.location.href = '/backoffice/login';
           }
           return Promise.reject(error);
         }
 
+        const refreshUrl = API_URL ? `${API_URL}/api/v1/auth/jwt/refresh/` : '/api/v1/auth/jwt/refresh/';
         const response = await axios.post(
-          `${API_URL}/api/v1/auth/jwt/refresh/`,
+          refreshUrl,
           { refresh: refreshToken },
           { withCredentials: true }
         );
@@ -147,8 +148,8 @@ apiClient.interceptors.response.use(
           localStorage.removeItem('auth-storage');
 
           // Redirect only if not already on login page
-          if (!window.location.pathname.startsWith('/login')) {
-            window.location.href = '/login';
+          if (!window.location.pathname.startsWith('/backoffice/login')) {
+            window.location.href = '/backoffice/login';
           }
         }
         return Promise.reject(refreshError);

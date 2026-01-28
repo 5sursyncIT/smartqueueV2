@@ -102,7 +102,7 @@ export default function LoginPage() {
             Connectez-vous pour accéder au back office
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent suppressHydrationWarning>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -142,7 +142,7 @@ export default function LoginPage() {
               <p>
                 <strong>Super-admin:</strong>{' '}
                 <code className="bg-white px-1 rounded">superadmin@smartqueue.app</code> /{' '}
-                <code className="bg-white px-1 rounded">admin123</code>
+                <code className="bg-white px-1 rounded">Admin123!</code>
               </p>
               <p>
                 <strong>Admin:</strong>{' '}
@@ -150,6 +150,9 @@ export default function LoginPage() {
                 <code className="bg-white px-1 rounded">admin123</code>
               </p>
             </div>
+            <p className="text-xs italic text-gray-500 mt-2">
+              Note: Si le superadmin n'existe pas, créez-le avec: <code className="bg-white px-1">python manage.py createsuperuser</code>
+            </p>
           </div>
         </CardContent>
       </Card>

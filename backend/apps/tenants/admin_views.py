@@ -92,9 +92,23 @@ class TenantAdminViewSet(viewsets.ModelViewSet):
 
             # 4. Créer l'abonnement initial
             trial_days = 14 if plan == "trial" else 0
+            
+            # Récupérer ou créer le plan d'abonnement
+            subscription_plan, _ = SubscriptionPlan.objects.get_or_create(
+                slug=plan,
+                defaults={
+                    "name": plan.capitalize(),
+                    "monthly_price": self._get_plan_price(plan) / 100,
+                    "yearly_price": (self._get_plan_price(plan) * 12) / 100,
+                    "max_sites": self._get_plan_limit(plan, "sites"),
+                    "max_agents": self._get_plan_limit(plan, "agents"),
+                    "max_queues": self._get_plan_limit(plan, "queues"),
+                }
+            )
+
             subscription = Subscription.objects.create(
                 tenant=tenant,
-                plan=plan,
+                plan=subscription_plan,
                 status=Subscription.STATUS_TRIAL if plan == "trial" else Subscription.STATUS_ACTIVE,
                 billing_cycle=Subscription.BILLING_CYCLE_MONTHLY,
                 monthly_price=self._get_plan_price(plan),

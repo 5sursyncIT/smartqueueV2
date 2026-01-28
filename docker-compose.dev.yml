@@ -35,8 +35,8 @@ services:
       DJANGO_SETTINGS_MODULE: smartqueue_backend.settings.dev
     volumes:
       - ./backend:/app
-    ports:
-      - "8000:8000"
+    # ports:
+    #   - "8000:8000"
     command: python manage.py runserver 0.0.0.0:8000
 
   celery:
@@ -70,6 +70,60 @@ services:
     volumes:
       - ./backend:/app
     command: celery -A smartqueue_backend beat -l info
+
+  frontend:
+    build:
+      context: ./back_office
+    container_name: smartqueue_frontend
+    restart: unless-stopped
+    # ports:
+    #   - "3000:3000"
+    volumes:
+      - ./back_office:/app
+      - /app/node_modules
+    environment:
+      NEXT_PUBLIC_API_URL: ""
+    depends_on:
+      - backend
+
+  client_app:
+    build:
+      context: ./frontend
+    container_name: smartqueue_client
+    restart: unless-stopped
+    # ports:
+    #   - "3001:3001"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      NEXT_PUBLIC_API_URL: "https://5sursync.eu"
+    depends_on:
+      - backend
+
+  nginx:
+    image: nginx:stable-alpine
+    container_name: smartqueue_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/certs:/etc/nginx/ssl
+      - ./nginx/auth:/etc/nginx/auth
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - backend
+      - frontend
+
+  certbot:
+    image: certbot/certbot
+    container_name: smartqueue_certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot:rw
+      - ./certbot/conf:/etc/letsencrypt:rw
 
 volumes:
   postgres_data:

@@ -158,7 +158,9 @@ export function Sidebar() {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/login';
+    // Utiliser router.push au lieu de window.location pour respecter le basePath
+    // Ou ajouter le basePath manuellement si on veut forcer un reload
+    window.location.href = '/backoffice/login';
   };
 
   // Filtrer les items selon le rôle

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  basePath: '/backoffice',
+  assetPrefix: '/backoffice',
   // Désactiver la minimisation en développement pour éviter les problèmes de chunks
   webpack: (config, { dev }) => {
     if (dev) {

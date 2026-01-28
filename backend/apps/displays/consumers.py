@@ -69,6 +69,8 @@ class DisplayConsumer(AsyncWebsocketConsumer):
             "http://127.0.0.1:3000",
             "http://127.0.0.1:3001",
             "http://127.0.0.1:3002",
+            "https://5sursync.eu",
+            "https://www.5sursync.eu",
         ]
         
         # Also allow any localhost or 127.0.0.1 with any port for development

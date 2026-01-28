@@ -39,6 +39,7 @@ SECRET_KEY = env("SECRET_KEY")
 # ALLOWED_HOSTS est maintenant défini plus bas avec la configuration WebSocket
 
 INSTALLED_APPS = [
+    "daphne",
     # Django core
     "django.contrib.admin",
     "django.contrib.auth",
@@ -392,5 +393,5 @@ TENANT_EXEMPT_PATH_PREFIXES = (
     "/api/v1/public/tenants/",
     "/api/schema",
     "/api/docs",
-    "/admin/login",
+    "/admin/",
 )

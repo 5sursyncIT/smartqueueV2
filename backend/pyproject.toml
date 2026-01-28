@@ -13,6 +13,7 @@ dependencies = [
   "djangorestframework-simplejwt>=5.3",
   "django-filter>=24.2",
   "django-cors-headers>=4.3",
+  "daphne>=4.0",
   "channels>=4.0",
   "channels-redis>=4.1",
   "celery>=5.3",
@@ -24,7 +25,10 @@ dependencies = [
   "structlog>=24.1",
   "twilio>=9.0",
   "sendgrid>=6.11",
-  "firebase-admin>=6.4"
+  "firebase-admin>=6.4",
+  "qrcode>=7.4",
+  "pillow>=10.0",
+  "reportlab>=4.0"
 ]
 
 [project.optional-dependencies]

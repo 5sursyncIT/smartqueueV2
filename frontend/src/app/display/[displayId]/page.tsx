@@ -386,13 +386,13 @@ export default function DisplayPage({ params }: { params: Promise<{ displayId: s
               aria-label={`Ticket ${ticket.number}${index === 0 ? ' - Actuellement appelé' : ''}`}
             >
               <div className="text-center">
-                <div className="text-sm text-gray-600 mb-2">{ticket.queue_name}</div>
+                <div className="text-xl font-bold text-gray-700 mb-2 uppercase tracking-wide">{ticket.queue_name}</div>
                 <div
                   className="text-6xl font-bold mb-4"
                   style={{ color: theme.primaryColor }}
                   aria-label={`Numéro de ticket ${ticket.number}`}
                 >
-                  {ticket.number}
+                  {ticket.number.split('-').pop()}
                 </div>
                 {ticket.counter && (
                   <div className="text-3xl font-semibold mb-2">

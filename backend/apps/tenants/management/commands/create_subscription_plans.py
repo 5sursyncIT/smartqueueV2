@@ -34,7 +34,7 @@ class Command(BaseCommand):
                 "max_queues": 3,
                 "max_tickets_per_month": 500,
                 "is_active": True,
-                "is_featured": False,
+                "display_order": 1,
             },
             {
                 "name": "Professional",
@@ -58,7 +58,7 @@ class Command(BaseCommand):
                 "max_queues": 10,
                 "max_tickets_per_month": 2000,
                 "is_active": True,
-                "is_featured": True,
+                "display_order": 2,
             },
             {
                 "name": "Enterprise",
@@ -85,7 +85,7 @@ class Command(BaseCommand):
                 "max_queues": 999,
                 "max_tickets_per_month": 999999,
                 "is_active": True,
-                "is_featured": False,
+                "display_order": 3,
             },
         ]
 

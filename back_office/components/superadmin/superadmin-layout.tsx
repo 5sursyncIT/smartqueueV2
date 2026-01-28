@@ -76,7 +76,7 @@ export function SuperAdminLayout({ children }: { children: React.ReactNode }) {
 
   const handleLogout = () => {
     logout();
-    window.location.href = '/login';
+    window.location.href = '/backoffice/login';
   };
 
   return (

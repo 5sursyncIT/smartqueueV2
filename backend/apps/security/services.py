@@ -252,7 +252,7 @@ class AttackDetectionService:
         r"(\bSELECT\b.*\bFROM\b.*\bWHERE\b)",
         r"(\bDROP\b.*\bTABLE\b)",
         r"(\bINSERT\b.*\bINTO\b)",
-        r"(--|\#|\/\*|\*\/)",
+        r"(\/\*|\*\/)",
         r"(\bOR\b\s+\d+\s*=\s*\d+)",
         r"(\bAND\b\s+\d+\s*=\s*\d+)",
         r"('.*OR.*'.*=.*')",
